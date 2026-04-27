@@ -1,21 +1,32 @@
 from datetime import datetime
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
-class RegisterRequest(BaseModel):
-    email: EmailStr
+class RequestOTPRequest(BaseModel):
+    full_name: str = Field(min_length=2, max_length=150)
+    phone_number: str = Field(min_length=9, max_length=20)
+
+
+class VerifyOTPRequest(BaseModel):
+    phone_number: str = Field(min_length=9, max_length=20)
+    otp_code: str = Field(min_length=4, max_length=10)
+
+
+class SetPasswordRequest(BaseModel):
+    phone_number: str = Field(min_length=9, max_length=20)
+    setup_token: str = Field(min_length=20)
     password: str = Field(min_length=8, max_length=72)
 
 
 class LoginRequest(BaseModel):
-    email: EmailStr
+    phone_number: str = Field(min_length=9, max_length=20)
     password: str = Field(min_length=8, max_length=72)
 
 
 class UserResponse(BaseModel):
     user_id: str
-    email: EmailStr
+    phone_number: str
     is_active: bool
     created_at: datetime
     updated_at: datetime
@@ -29,4 +40,17 @@ class TokenResponse(BaseModel):
 
 class AuthResponse(TokenResponse):
     user: UserResponse
+
+
+class OTPRequestedResponse(BaseModel):
+    status: str = "success"
+    message: str
+    expires_in_minutes: int
+    debug_otp: str | None = None
+
+
+class OTPVerifyResponse(BaseModel):
+    status: str = "success"
+    message: str
+    setup_token: str
 

@@ -19,7 +19,7 @@ class User(Base):
         primary_key=True,
         default=lambda: str(uuid.uuid4()),
     )
-    email: Mapped[str] = mapped_column(String(255), unique=True, index=True)
+    phone_number: Mapped[str] = mapped_column(String(20), unique=True, index=True)
     password_hash: Mapped[str] = mapped_column(String(255))
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
@@ -72,3 +72,22 @@ class UserProfile(Base):
 
     user: Mapped[User] = relationship(back_populates="profile")
 
+
+class OTPVerification(Base):
+    __tablename__ = "otp_verifications"
+
+    verification_id: Mapped[str] = mapped_column(
+        String(36),
+        primary_key=True,
+        default=lambda: str(uuid.uuid4()),
+    )
+    phone_number: Mapped[str] = mapped_column(String(20), index=True)
+    full_name: Mapped[str | None] = mapped_column(String(150), nullable=True)
+    otp_code_hash: Mapped[str] = mapped_column(String(255))
+    expires_at: Mapped[datetime] = mapped_column(DateTime(timezone=True))
+    attempts: Mapped[int] = mapped_column(Integer, default=0)
+    max_attempts: Mapped[int] = mapped_column(Integer, default=5)
+    verified: Mapped[bool] = mapped_column(Boolean, default=False)
+    verified_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    consumed: Mapped[bool] = mapped_column(Boolean, default=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
