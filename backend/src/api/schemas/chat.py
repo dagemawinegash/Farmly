@@ -22,3 +22,13 @@ class ChatMessageResponse(BaseModel):
     content: str
     sequence_no: int
     created_at: datetime
+
+
+class ChatMessageCreateRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=4000)
+
+
+class ChatSendResponse(BaseModel):
+    session_id: str
+    user_message: ChatMessageResponse
+    assistant_message: ChatMessageResponse
