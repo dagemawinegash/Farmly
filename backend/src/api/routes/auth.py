@@ -1,4 +1,4 @@
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -6,6 +6,10 @@ from sqlalchemy.orm import Session
 from src.api.schemas.auth import (
     AuthResponse,
     LoginRequest,
+    PhoneChangeConfirmRequest,
+    PhoneChangeConfirmResponse,
+    PhoneChangeRequest,
+    PhoneChangeRequestedResponse,
     OTPRequestedResponse,
     OTPVerifyResponse,
     RequestOTPRequest,
@@ -19,7 +23,12 @@ from src.auth.otp_utils import generate_otp_code, hash_otp, otp_expiry_time, ver
 from src.auth.password import hash_password, verify_password
 from src.common.utils.phone import normalize_phone
 from src.config.settings import get_settings
-from src.db.models.user import OTPVerification, User, UserProfile
+from src.db.models.user import (
+    OTPVerification,
+    PhoneChangeVerification,
+    User,
+    UserProfile,
+)
 from src.db.session import get_db
 from src.integrations.sms.sms_ethiopia import send_sms
 
@@ -248,3 +257,172 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)) -> AuthResponse:
 def get_me(current_user: User = Depends(get_current_user)) -> UserResponse:
     return _to_user_response(current_user)
 
+
+@router.post(
+    "/users/me/phone-change/request",
+    response_model=PhoneChangeRequestedResponse,
+)
+def request_phone_change(
+    payload: PhoneChangeRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PhoneChangeRequestedResponse:
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+
+    try:
+        new_phone = normalize_phone(payload.new_phone_number)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    if new_phone == current_user.phone_number:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="New phone number is the same as current phone number",
+        )
+
+    existing_user = db.query(User).filter(User.phone_number == new_phone).first()
+    if existing_user:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phone number already in use",
+        )
+
+    cooldown_cutoff = datetime.now(timezone.utc) - timedelta(
+        seconds=settings.phone_change_cooldown_seconds
+    )
+    recent_request = (
+        db.query(PhoneChangeVerification)
+        .filter(
+            PhoneChangeVerification.user_id == current_user.user_id,
+            PhoneChangeVerification.consumed.is_(False),
+            PhoneChangeVerification.created_at >= cooldown_cutoff,
+        )
+        .order_by(PhoneChangeVerification.created_at.desc())
+        .first()
+    )
+    if recent_request:
+        raise HTTPException(
+            status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+            detail=f"Please wait {settings.phone_change_cooldown_seconds} seconds before requesting another OTP",
+        )
+
+    db.query(PhoneChangeVerification).filter(
+        PhoneChangeVerification.user_id == current_user.user_id,
+        PhoneChangeVerification.consumed.is_(False),
+    ).update({PhoneChangeVerification.consumed: True}, synchronize_session=False)
+
+    otp_code = generate_otp_code()
+    record = PhoneChangeVerification(
+        user_id=current_user.user_id,
+        new_phone_number=new_phone,
+        otp_code_hash=hash_otp(new_phone, otp_code),
+        expires_at=otp_expiry_time(),
+        max_attempts=settings.otp_max_attempts,
+    )
+    db.add(record)
+    db.commit()
+
+    sms_text = (
+        f"Farmly phone change code: {otp_code}. Expires in {settings.otp_expire_minutes} minutes."
+    )
+    debug_otp: str | None = None
+    try:
+        send_sms(new_phone, sms_text)
+    except Exception as exc:
+        if settings.debug:
+            debug_otp = otp_code
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Failed to send OTP SMS: {exc}",
+            )
+
+    if settings.debug and debug_otp is None:
+        debug_otp = otp_code
+
+    return PhoneChangeRequestedResponse(
+        message="Phone change OTP sent successfully",
+        expires_in_minutes=settings.otp_expire_minutes,
+        debug_otp=debug_otp,
+    )
+
+
+@router.post(
+    "/users/me/phone-change/confirm",
+    response_model=PhoneChangeConfirmResponse,
+)
+def confirm_phone_change(
+    payload: PhoneChangeConfirmRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> PhoneChangeConfirmResponse:
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+
+    try:
+        new_phone = normalize_phone(payload.new_phone_number)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    existing_user = db.query(User).filter(User.phone_number == new_phone).first()
+    if existing_user and existing_user.user_id != current_user.user_id:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Phone number already in use",
+        )
+
+    record = (
+        db.query(PhoneChangeVerification)
+        .filter(
+            PhoneChangeVerification.user_id == current_user.user_id,
+            PhoneChangeVerification.new_phone_number == new_phone,
+            PhoneChangeVerification.consumed.is_(False),
+        )
+        .order_by(PhoneChangeVerification.created_at.desc())
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="No phone-change OTP request found")
+
+    now = datetime.now(timezone.utc)
+    expires_at = record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < now:
+        record.consumed = True
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP expired")
+
+    if record.attempts >= record.max_attempts:
+        record.consumed = True
+        db.commit()
+        raise HTTPException(status_code=429, detail="Maximum OTP attempts exceeded")
+
+    if not verify_otp_hash(new_phone, payload.otp_code, record.otp_code_hash):
+        record.attempts += 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    current_user.phone_number = new_phone
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
+    if profile:
+        profile.phone_number = new_phone
+
+    record.verified = True
+    record.verified_at = now
+    record.consumed = True
+
+    db.commit()
+    db.refresh(current_user)
+
+    return PhoneChangeConfirmResponse(
+        message="Phone number changed successfully",
+        phone_number=current_user.phone_number,
+    )

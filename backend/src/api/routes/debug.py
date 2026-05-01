@@ -2,7 +2,7 @@ from fastapi import APIRouter, Header, HTTPException, status
 from sqlalchemy import delete
 
 from src.config.settings import get_settings
-from src.db.models.user import OTPVerification, User, UserProfile
+from src.db.models.user import OTPVerification, PhoneChangeVerification, User, UserProfile
 from src.db.session import SessionLocal
 
 
@@ -33,6 +33,7 @@ def reset_all_data(x_debug_token: str | None = Header(default=None)) -> dict:
     db = SessionLocal()
     try:
         otp_deleted = db.execute(delete(OTPVerification)).rowcount or 0
+        phone_change_deleted = db.execute(delete(PhoneChangeVerification)).rowcount or 0
         profile_deleted = db.execute(delete(UserProfile)).rowcount or 0
         user_deleted = db.execute(delete(User)).rowcount or 0
         db.commit()
@@ -46,6 +47,6 @@ def reset_all_data(x_debug_token: str | None = Header(default=None)) -> dict:
             "users": user_deleted,
             "profiles": profile_deleted,
             "otp_verifications": otp_deleted,
+            "phone_change_verifications": phone_change_deleted,
         },
     }
-

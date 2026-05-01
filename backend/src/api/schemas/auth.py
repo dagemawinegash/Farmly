@@ -54,3 +54,26 @@ class OTPVerifyResponse(BaseModel):
     message: str
     setup_token: str
 
+
+class PhoneChangeRequest(BaseModel):
+    current_password: str = Field(min_length=8, max_length=72)
+    new_phone_number: str = Field(min_length=9, max_length=20)
+
+
+class PhoneChangeConfirmRequest(BaseModel):
+    current_password: str = Field(min_length=8, max_length=72)
+    new_phone_number: str = Field(min_length=9, max_length=20)
+    otp_code: str = Field(min_length=4, max_length=10)
+
+
+class PhoneChangeRequestedResponse(BaseModel):
+    status: str = "success"
+    message: str
+    expires_in_minutes: int
+    debug_otp: str | None = None
+
+
+class PhoneChangeConfirmResponse(BaseModel):
+    status: str = "success"
+    message: str
+    phone_number: str

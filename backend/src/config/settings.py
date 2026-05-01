@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     access_token_expire_minutes: int = 60 * 24 * 7
     otp_expire_minutes: int = 5
     otp_max_attempts: int = 5
+    phone_change_cooldown_seconds: int = 60
 
     sms_ethiopia_api_key: str | None = None
     sms_ethiopia_base_url: str = "https://smsethiopia.et/api"

@@ -110,6 +110,12 @@ def update_my_profile(
             detail="No fields provided for update",
         )
 
+    if "phone_number" in updates:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Phone number cannot be updated from this endpoint. Use phone-change flow.",
+        )
+
     if "crops_grown" in updates and updates["crops_grown"] is not None:
         updates["crops_grown"] = _join_crops(updates["crops_grown"])
 
@@ -119,4 +125,3 @@ def update_my_profile(
     db.commit()
     db.refresh(profile)
     return _to_profile_response(profile)
-
