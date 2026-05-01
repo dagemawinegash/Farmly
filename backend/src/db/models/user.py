@@ -34,6 +34,10 @@ class User(Base):
         uselist=False,
         cascade="all, delete-orphan",
     )
+    chat_sessions: Mapped[list["ChatSession"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class UserProfile(Base):

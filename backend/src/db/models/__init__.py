@@ -1,3 +1,11 @@
+from src.db.models.chat import ChatMessage, ChatSession
 from src.db.models.user import PhoneChangeVerification, OTPVerification, User, UserProfile
 
-__all__ = ["User", "UserProfile", "OTPVerification", "PhoneChangeVerification"]
+__all__ = [
+    "User",
+    "UserProfile",
+    "OTPVerification",
+    "PhoneChangeVerification",
+    "ChatSession",
+    "ChatMessage",
+]
