@@ -26,6 +26,10 @@ class Settings(BaseSettings):
     sms_ethiopia_api_key: str | None = None
     sms_ethiopia_base_url: str = "https://smsethiopia.et/api"
 
+    gemini_api_key: str | None = None
+    gemini_model: str = "gemini-3-flash-preview"
+    gemini_timeout_seconds: int = 20
+
     debug_reset_token: str | None = None
 
 

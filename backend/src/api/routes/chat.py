@@ -15,8 +15,9 @@ from src.api.schemas.chat import (
 )
 from src.auth.dependencies import get_current_user
 from src.db.models.chat import ChatMessage, ChatSession
-from src.db.models.user import User
+from src.db.models.user import User, UserProfile
 from src.db.session import get_db
+from src.integrations.llm.gemini_adapter import generate_reply
 
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -43,15 +44,37 @@ def _to_message_response(message: ChatMessage) -> ChatMessageResponse:
     )
 
 
-def _mock_assistant_reply(user_text: str) -> str:
+def _fallback_assistant_reply(user_text: str) -> str:
     trimmed = user_text.strip()
     preview = trimmed[:120]
     return (
         "Thanks, I got your message: "
         f"'{preview}'. "
-        "This is a temporary Farmly assistant reply for this Phase. "
-        "AI advisory response will be added in the next phase."
+        "This is a temporary Farmly fallback reply. "
+        "AI advisory response will be improved in the next phase."
     )
+
+
+def _split_crops(value: str | None) -> list[str]:
+    if not value:
+        return []
+    return [crop.strip() for crop in value.split(",") if crop.strip()]
+
+
+def _build_profile_context(profile: UserProfile | None) -> dict[str, str]:
+    if not profile:
+        return {}
+    return {
+        "full_name": profile.full_name or "",
+        "location": profile.location or "",
+        "preferred_language": profile.preferred_language or "",
+        "user_type": profile.user_type or "",
+        "years_experience": (
+            str(profile.years_experience) if profile.years_experience is not None else ""
+        ),
+        "main_goal": profile.main_goal or "",
+        "crops_grown": ", ".join(_split_crops(profile.crops_grown)),
+    }
 
 
 def _get_owned_session(db: Session, session_id: UUID, user_id: str) -> ChatSession | None:
@@ -155,6 +178,29 @@ def send_message(
     )
     next_seq = (last_seq[0] if last_seq else 0) + 1
 
+    recent_messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.session_id)
+        .order_by(ChatMessage.sequence_no.desc())
+        .limit(8)
+        .all()
+    )
+    recent_messages = list(reversed(recent_messages))[-5:]
+
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
+    profile_context = _build_profile_context(profile)
+
+    try:
+        assistant_text = generate_reply(
+            latest_user_message=text,
+            recent_messages=[
+                {"sender": m.sender, "content": m.content} for m in recent_messages
+            ],
+            profile_context=profile_context,
+        )
+    except Exception:
+        assistant_text = _fallback_assistant_reply(text)
+
     user_message = ChatMessage(
         session_id=session.session_id,
         sender="user",
@@ -166,7 +212,7 @@ def send_message(
     assistant_message = ChatMessage(
         session_id=session.session_id,
         sender="assistant",
-        content=_mock_assistant_reply(text),
+        content=assistant_text,
         sequence_no=next_seq + 1,
     )
     db.add(assistant_message)
