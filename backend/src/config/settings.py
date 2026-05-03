@@ -30,6 +30,9 @@ class Settings(BaseSettings):
     gemini_model: str = "gemini-3-flash-preview"
     gemini_timeout_seconds: int = 20
 
+    isda_username: str | None = None
+    isda_password: str | None = None
+
     debug_reset_token: str | None = None
 
 
