@@ -1,7 +1,7 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Query, UploadFile, status
 from sqlalchemy.orm import Session
 
 from src.api.schemas.chat import (
@@ -17,7 +17,7 @@ from src.auth.dependencies import get_current_user
 from src.db.models.chat import ChatMessage, ChatSession
 from src.db.models.user import User, UserProfile
 from src.db.session import get_db
-from src.integrations.llm.gemini_adapter import generate_reply
+from src.services.chat_orchestrator import run_chat_orchestrator
 
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -42,39 +42,6 @@ def _to_message_response(message: ChatMessage) -> ChatMessageResponse:
         sequence_no=message.sequence_no,
         created_at=message.created_at,
     )
-
-
-def _fallback_assistant_reply(user_text: str) -> str:
-    trimmed = user_text.strip()
-    preview = trimmed[:120]
-    return (
-        "Thanks, I got your message: "
-        f"'{preview}'. "
-        "This is a temporary Farmly fallback reply. "
-        "AI advisory response will be improved in the next phase."
-    )
-
-
-def _split_crops(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return [crop.strip() for crop in value.split(",") if crop.strip()]
-
-
-def _build_profile_context(profile: UserProfile | None) -> dict[str, str]:
-    if not profile:
-        return {}
-    return {
-        "full_name": profile.full_name or "",
-        "location": profile.location or "",
-        "preferred_language": profile.preferred_language or "",
-        "user_type": profile.user_type or "",
-        "years_experience": (
-            str(profile.years_experience) if profile.years_experience is not None else ""
-        ),
-        "main_goal": profile.main_goal or "",
-        "crops_grown": ", ".join(_split_crops(profile.crops_grown)),
-    }
 
 
 def _get_owned_session(db: Session, session_id: UUID, user_id: str) -> ChatSession | None:
@@ -152,7 +119,8 @@ def get_session_messages(
 @router.post("/sessions/{session_id}/messages", response_model=ChatSendResponse)
 def send_message(
     session_id: UUID,
-    payload: ChatMessageCreateRequest,
+    message: str | None = Form(default=None),
+    image: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChatSendResponse:
@@ -163,12 +131,37 @@ def send_message(
             detail="Chat session not found",
         )
 
-    text = payload.content.strip()
-    if not text:
+    text = (message or "").strip()
+    if image is None and not text:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Message content cannot be empty",
+            detail="Provide message or image",
         )
+
+    image_bytes: bytes | None = None
+    if image is not None:
+        content_type = (image.content_type or "").lower()
+        if not content_type.startswith("image/"):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded file must be an image.",
+            )
+        image_bytes = image.file.read()
+        if not image_bytes:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Uploaded image is empty.",
+            )
+
+    user_content = text if text else "[image uploaded for diagnosis]"
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
+    chosen_route, assistant_text = run_chat_orchestrator(
+        db=db,
+        session_id=session.session_id,
+        profile=profile,
+        message=user_content,
+        image_bytes=image_bytes,
+    )
 
     last_seq = (
         db.query(ChatMessage.sequence_no)
@@ -178,33 +171,10 @@ def send_message(
     )
     next_seq = (last_seq[0] if last_seq else 0) + 1
 
-    recent_messages = (
-        db.query(ChatMessage)
-        .filter(ChatMessage.session_id == session.session_id)
-        .order_by(ChatMessage.sequence_no.desc())
-        .limit(8)
-        .all()
-    )
-    recent_messages = list(reversed(recent_messages))[-5:]
-
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
-    profile_context = _build_profile_context(profile)
-
-    try:
-        assistant_text = generate_reply(
-            latest_user_message=text,
-            recent_messages=[
-                {"sender": m.sender, "content": m.content} for m in recent_messages
-            ],
-            profile_context=profile_context,
-        )
-    except Exception:
-        assistant_text = _fallback_assistant_reply(text)
-
     user_message = ChatMessage(
         session_id=session.session_id,
         sender="user",
-        content=text,
+        content=user_content,
         sequence_no=next_seq,
     )
     db.add(user_message)
@@ -226,6 +196,7 @@ def send_message(
         session_id=session.session_id,
         user_message=_to_message_response(user_message),
         assistant_message=_to_message_response(assistant_message),
+        chosen_route=chosen_route,
     )
 
 

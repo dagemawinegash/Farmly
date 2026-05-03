@@ -37,6 +37,7 @@ class ChatSendResponse(BaseModel):
     session_id: UUID
     user_message: ChatMessageResponse
     assistant_message: ChatMessageResponse
+    chosen_route: str | None = None
 
 
 class ChatDeleteResponse(BaseModel):
