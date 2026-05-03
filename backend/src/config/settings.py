@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     isda_username: str | None = None
     isda_password: str | None = None
 
+    kindwise_api_key: str | None = None
+
     debug_reset_token: str | None = None
 
 
