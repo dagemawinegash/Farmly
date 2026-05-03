@@ -1,15 +1,17 @@
 from datetime import datetime, timezone
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
 from src.api.schemas.chat import (
     ChatMessageCreateRequest,
     ChatMessageResponse,
+    ChatDeleteResponse,
     ChatSendResponse,
     ChatSessionCreateRequest,
     ChatSessionResponse,
+    ChatSessionUpdateRequest,
 )
 from src.auth.dependencies import get_current_user
 from src.db.models.chat import ChatMessage, ChatSession
@@ -82,6 +84,8 @@ def create_session(
 
 @router.get("/sessions", response_model=list[ChatSessionResponse])
 def list_my_sessions(
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[ChatSessionResponse]:
@@ -89,6 +93,8 @@ def list_my_sessions(
         db.query(ChatSession)
         .filter(ChatSession.user_id == current_user.user_id)
         .order_by(ChatSession.updated_at.desc())
+        .offset(offset)
+        .limit(limit)
         .all()
     )
     return [_to_session_response(s) for s in sessions]
@@ -97,6 +103,8 @@ def list_my_sessions(
 @router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageResponse])
 def get_session_messages(
     session_id: UUID,
+    limit: int = Query(default=20, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[ChatMessageResponse]:
@@ -107,7 +115,15 @@ def get_session_messages(
             detail="Chat session not found",
         )
 
-    return [_to_message_response(m) for m in session.messages]
+    messages = (
+        db.query(ChatMessage)
+        .filter(ChatMessage.session_id == session.session_id)
+        .order_by(ChatMessage.sequence_no.asc())
+        .offset(offset)
+        .limit(limit)
+        .all()
+    )
+    return [_to_message_response(m) for m in messages]
 
 
 @router.post("/sessions/{session_id}/messages", response_model=ChatSendResponse)
@@ -164,4 +180,54 @@ def send_message(
         session_id=session.session_id,
         user_message=_to_message_response(user_message),
         assistant_message=_to_message_response(assistant_message),
+    )
+
+
+@router.patch("/sessions/{session_id}", response_model=ChatSessionResponse)
+def rename_session(
+    session_id: UUID,
+    payload: ChatSessionUpdateRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ChatSessionResponse:
+    session = _get_owned_session(db, session_id, current_user.user_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found",
+        )
+
+    title = payload.title.strip()
+    if not title:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Session title cannot be empty",
+        )
+
+    session.title = title
+    session.updated_at = datetime.now(timezone.utc)
+    db.commit()
+    db.refresh(session)
+    return _to_session_response(session)
+
+
+@router.delete("/sessions/{session_id}", response_model=ChatDeleteResponse)
+def delete_session(
+    session_id: UUID,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> ChatDeleteResponse:
+    session = _get_owned_session(db, session_id, current_user.user_id)
+    if not session:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Chat session not found",
+        )
+
+    deleted_id = UUID(session.session_id)
+    db.delete(session)
+    db.commit()
+    return ChatDeleteResponse(
+        message="Chat session deleted successfully",
+        session_id=deleted_id,
     )

@@ -8,6 +8,10 @@ class ChatSessionCreateRequest(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=160)
 
 
+class ChatSessionUpdateRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=160)
+
+
 class ChatSessionResponse(BaseModel):
     session_id: UUID
     user_id: UUID
@@ -33,3 +37,8 @@ class ChatSendResponse(BaseModel):
     session_id: UUID
     user_message: ChatMessageResponse
     assistant_message: ChatMessageResponse
+
+
+class ChatDeleteResponse(BaseModel):
+    message: str
+    session_id: UUID
