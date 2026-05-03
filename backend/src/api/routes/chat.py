@@ -1,4 +1,5 @@
 from datetime import datetime, timezone
+from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
@@ -51,11 +52,11 @@ def _mock_assistant_reply(user_text: str) -> str:
     )
 
 
-def _get_owned_session(db: Session, session_id: str, user_id: str) -> ChatSession | None:
+def _get_owned_session(db: Session, session_id: UUID, user_id: str) -> ChatSession | None:
     return (
         db.query(ChatSession)
         .filter(
-            ChatSession.session_id == session_id,
+            ChatSession.session_id == str(session_id),
             ChatSession.user_id == user_id,
         )
         .first()
@@ -95,7 +96,7 @@ def list_my_sessions(
 
 @router.get("/sessions/{session_id}/messages", response_model=list[ChatMessageResponse])
 def get_session_messages(
-    session_id: str,
+    session_id: UUID,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> list[ChatMessageResponse]:
@@ -111,7 +112,7 @@ def get_session_messages(
 
 @router.post("/sessions/{session_id}/messages", response_model=ChatSendResponse)
 def send_message(
-    session_id: str,
+    session_id: UUID,
     payload: ChatMessageCreateRequest,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),

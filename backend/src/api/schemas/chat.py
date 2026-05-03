@@ -1,4 +1,5 @@
 from datetime import datetime
+from uuid import UUID
 
 from pydantic import BaseModel, Field
 
@@ -8,16 +9,16 @@ class ChatSessionCreateRequest(BaseModel):
 
 
 class ChatSessionResponse(BaseModel):
-    session_id: str
-    user_id: str
+    session_id: UUID
+    user_id: UUID
     title: str | None = None
     created_at: datetime
     updated_at: datetime
 
 
 class ChatMessageResponse(BaseModel):
-    message_id: str
-    session_id: str
+    message_id: UUID
+    session_id: UUID
     sender: str
     content: str
     sequence_no: int
@@ -29,6 +30,6 @@ class ChatMessageCreateRequest(BaseModel):
 
 
 class ChatSendResponse(BaseModel):
-    session_id: str
+    session_id: UUID
     user_message: ChatMessageResponse
     assistant_message: ChatMessageResponse
