@@ -55,11 +55,11 @@ def _simplify_kindwise_response(data: dict) -> dict:
 
 
 def diagnose_with_kindwise(image_bytes: bytes, latitude: float = 9.03, longitude: float = 38.74) -> dict:
-    if not settings.kindwise_api_key:
-        raise RuntimeError("KINDWISE_API_KEY is not configured")
+    if not settings.kindwise_crop_health_api_key:
+        raise RuntimeError("KINDWISE_CROP_HEALTH_API_KEY is not configured")
 
     url = "https://crop.kindwise.com/api/v1/identification"
-    headers = {"Api-Key": settings.kindwise_api_key}
+    headers = {"Api-Key": settings.kindwise_crop_health_api_key}
     data = {
         "latitude": str(latitude),
         "longitude": str(longitude),

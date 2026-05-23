@@ -1,11 +1,89 @@
 import json
+import re
 
 from src.api.schemas.diagnosis import DiagnosisResponse
+from src.config.settings import get_settings
 from src.db.models.user import UserProfile
 from src.integrations.crop_health.kindwise_client import diagnose_with_kindwise
+from src.integrations.crop_health.plant_id_client import identify_plant
+from src.integrations.crop_health.sorghum_labels import display_sorghum_class
+from src.integrations.crop_health.sorghum_model_client import predict_sorghum_disease
 from src.integrations.llm.gemini_adapter import generate_reply
 from src.integrations.soil.isda_client import get_soil_summary
 from src.integrations.weather.open_meteo import get_current_and_forecast, get_weather_summary
+
+
+settings = get_settings()
+
+SORGHUM_KEYWORDS = ("sorghum", "sorghum bicolor", "great millet", "jowar")
+
+SUPPORTED_CROP_KEYWORDS = (
+    ("apple", "malus domestica"),
+    ("barley", "hordeum vulgare"),
+    ("beet", "beetroot", "beta vulgaris"),
+    ("bell pepper", "capsicum annuum", "pepper"),
+    ("blueberry", "vaccinium"),
+    ("brassica", "cabbage", "kale", "broccoli", "cauliflower"),
+    ("cassava", "manihot esculenta"),
+    ("cherry", "prunus avium", "prunus cerasus"),
+    ("corn", "maize", "zea mays"),
+    ("cucumber", "cucumis sativus"),
+    ("grape", "vitis vinifera"),
+    ("hop", "humulus lupulus"),
+    ("leek", "allium ampeloprasum"),
+    ("lettuce", "lactuca sativa"),
+    ("mustard", "brassica juncea", "sinapis alba"),
+    ("oat", "avena sativa"),
+    ("oilseed rape", "rapeseed", "canola", "brassica napus"),
+    ("olive", "olea europaea"),
+    ("onion", "allium cepa"),
+    ("orange", "citrus sinensis"),
+    ("peach", "prunus persica"),
+    ("pear", "pyrus communis"),
+    ("pea", "pisum sativum"),
+    ("potato", "solanum tuberosum"),
+    ("raspberry", "rubus idaeus"),
+    ("rice", "oryza sativa"),
+    ("rose", "rosa"),
+    ("soybean", "soya", "glycine max"),
+    ("squash", "pumpkin", "cucurbita"),
+    ("strawberry", "fragaria"),
+    ("sugar beet", "beta vulgaris"),
+    ("sunflower", "helianthus annuus"),
+    ("tomato", "solanum lycopersicum"),
+    ("wheat", "triticum"),
+)
+
+SORGHUM_ADVICE = {
+    "Normal_Sorghum": (
+        "The sorghum looks normal from this image. Keep monitoring the field, avoid water stress, "
+        "and check leaves and heads every few days for new spots, rust, mold, or smut symptoms."
+    ),
+    "Anthracnose_Red_Rot": (
+        "This may be anthracnose or red rot. Remove badly affected plant parts where practical, "
+        "avoid overhead irrigation, improve field airflow, and rotate away from sorghum or related grasses next season."
+    ),
+    "Cereal_Grain_Molds": (
+        "This may be cereal grain mold. Harvest on time, dry heads and grain quickly after harvest, "
+        "store grain in a dry place, and use clean seed from healthy plants."
+    ),
+    "Covered_Kernel_Smut": (
+        "This may be covered kernel smut. Use clean or certified seed, treat seed before planting if available, "
+        "remove infected heads, and rotate crops to reduce carryover."
+    ),
+    "Head_Smut": (
+        "This may be head smut. Remove infected heads before spores spread, use resistant varieties when available, "
+        "plant clean seed, and rotate with non-host crops."
+    ),
+    "Loose_Smut": (
+        "This may be loose smut. Use disease-free seed, treat seed before planting if available, "
+        "remove infected heads early, and avoid saving seed from affected fields."
+    ),
+    "Rust": (
+        "This may be rust. Remove heavily infected leaves where practical, avoid dense planting, "
+        "monitor spread closely, and ask a local extension worker about fungicide options if rust is spreading fast."
+    ),
+}
 
 
 def split_crops(value: str | None) -> list[str]:
@@ -82,6 +160,168 @@ def _fallback_diagnosis_advice(is_plant: bool, top_disease_name: str | None) -> 
     return (
         "No clear disease was detected from this image. "
         "Continue field monitoring and upload a closer leaf image if symptoms worsen."
+    )
+
+
+def _candidate_probability(candidate: dict | None) -> float:
+    if not candidate:
+        return 0.0
+    try:
+        return float(candidate.get("probability") or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _candidate_text(candidate: dict | None) -> str:
+    if not candidate:
+        return ""
+    values = [
+        candidate.get("name"),
+        candidate.get("scientific_name"),
+        *(candidate.get("common_names") or []),
+    ]
+    return " ".join(str(value).lower() for value in values if value)
+
+
+def _candidate_matches(candidate: dict | None, keywords: tuple[str, ...]) -> bool:
+    text = _candidate_text(candidate)
+    return any(
+        re.search(rf"(?<![a-z]){re.escape(keyword)}(?![a-z])", text)
+        for keyword in keywords
+    )
+
+
+def _find_sorghum_candidate(crops: list[dict]) -> dict | None:
+    for crop in crops[:5]:
+        if (
+            _candidate_probability(crop) >= settings.plant_id_sorghum_threshold
+            and _candidate_matches(crop, SORGHUM_KEYWORDS)
+        ):
+            return crop
+    return None
+
+
+def _is_supported_crop(candidate: dict | None) -> bool:
+    if _candidate_probability(candidate) < settings.plant_id_supported_crop_threshold:
+        return False
+    return any(_candidate_matches(candidate, keywords) for keywords in SUPPORTED_CROP_KEYWORDS)
+
+
+def _unsupported_crop_advice(top_crop: dict | None) -> str:
+    crop_name = (top_crop or {}).get("name") or (top_crop or {}).get("scientific_name") or "this plant"
+    return (
+        f"Farmly identified {crop_name}, but crop-health diagnosis is currently available only for "
+        "sorghum and crops supported by Kindwise Crop.health. Please upload a clear sorghum image, "
+        "or use another supported crop image for disease diagnosis."
+    )
+
+
+def _sorghum_advice_text(class_name: str, confidence_status: str) -> str:
+    advice = SORGHUM_ADVICE.get(
+        class_name,
+        "Monitor the sorghum closely and upload another clear image if symptoms change or spread.",
+    )
+    if confidence_status == "uncertain":
+        return (
+            "The sorghum model is not confident from this image. Please upload a closer, well-lit photo "
+            f"from another angle. Possible result: {display_sorghum_class(class_name)}. {advice}"
+        )
+    return advice
+
+
+def _build_sorghum_advice(
+    profile: UserProfile,
+    class_name: str,
+    confidence_status: str,
+    recent_messages: list[dict[str, str]] | None,
+) -> tuple[str, bool]:
+    fallback_text = _sorghum_advice_text(class_name, confidence_status)
+    profile_context = build_profile_context(
+        profile,
+        profile.location,
+        split_crops(profile.crops_grown),
+        extra={
+            "diagnosis_summary": json.dumps(
+                {
+                    "provider": "farmly_sorghum",
+                    "prediction": display_sorghum_class(class_name),
+                    "confidence_status": confidence_status,
+                    "base_advice": fallback_text,
+                },
+                ensure_ascii=False,
+            )
+        },
+    )
+
+    try:
+        text = generate_reply(
+            latest_user_message=(
+                "Rewrite this sorghum diagnosis into short farmer-friendly advice. "
+                "Keep the disease meaning and practical action from the base advice."
+            ),
+            recent_messages=recent_messages or [],
+            profile_context=profile_context,
+        )
+        return text, False
+    except Exception:
+        return fallback_text, True
+
+
+def _run_sorghum_diagnosis(
+    profile: UserProfile,
+    image_bytes: bytes,
+    crops: list[dict],
+    sorghum_crop: dict | None,
+    recent_messages: list[dict[str, str]] | None,
+) -> DiagnosisResponse:
+    predictions = predict_sorghum_disease(image_bytes, top_k=3)
+    top_prediction = predictions[0] if predictions else {
+        "class_name": "Unknown",
+        "name": "Unknown sorghum issue",
+        "probability": 0.0,
+    }
+    confidence = _candidate_probability(top_prediction)
+
+    if confidence >= settings.sorghum_confident_threshold:
+        confidence_status = "confident"
+        needs_retake = False
+    elif confidence >= settings.sorghum_uncertain_threshold:
+        confidence_status = "uncertain"
+        needs_retake = True
+    else:
+        confidence_status = "uncertain"
+        needs_retake = True
+
+    class_name = top_prediction.get("class_name") or ""
+    advice_text, used_fallback = _build_sorghum_advice(
+        profile,
+        class_name,
+        confidence_status,
+        recent_messages,
+    )
+
+    diseases = [
+        {
+            "name": item.get("name") or display_sorghum_class(item.get("class_name") or ""),
+            "scientific_name": item.get("class_name"),
+            "probability": item.get("probability"),
+            "similar_images": [],
+        }
+        for item in predictions
+    ]
+    top_crop = sorghum_crop or (crops[0] if crops else None)
+
+    return DiagnosisResponse(
+        is_plant=True,
+        top_crop=top_crop,
+        top_disease=diseases[0] if diseases else None,
+        crops=crops,
+        diseases=diseases,
+        advice_text=advice_text,
+        used_fallback=used_fallback,
+        provider="farmly_sorghum",
+        confidence_status=confidence_status,
+        needs_retake=needs_retake,
     )
 
 
@@ -215,6 +455,50 @@ def run_diagnosis(
 ) -> DiagnosisResponse:
     coords = parse_lat_lon(profile.location)
     lat, lon = coords if coords else (9.03, 38.74)
+    plant_identification = identify_plant(image_bytes)
+
+    plant_crops = plant_identification.get("crops", [])
+    plant_top_crop = plant_crops[0] if plant_crops else None
+    is_plant = bool(plant_identification.get("is_plant", False))
+
+    if not is_plant:
+        return DiagnosisResponse(
+            is_plant=False,
+            top_crop=None,
+            top_disease=None,
+            crops=[],
+            diseases=[],
+            advice_text=_fallback_diagnosis_advice(False, None),
+            used_fallback=False,
+            provider="plant_id_only",
+            confidence_status="not_plant",
+            needs_retake=True,
+        )
+
+    sorghum_crop = _find_sorghum_candidate(plant_crops)
+    if sorghum_crop:
+        return _run_sorghum_diagnosis(
+            profile,
+            image_bytes,
+            plant_crops,
+            sorghum_crop,
+            recent_messages,
+        )
+
+    if not _is_supported_crop(plant_top_crop):
+        return DiagnosisResponse(
+            is_plant=True,
+            top_crop=plant_top_crop,
+            top_disease=None,
+            crops=plant_crops,
+            diseases=[],
+            advice_text=_unsupported_crop_advice(plant_top_crop),
+            used_fallback=False,
+            provider="plant_id_only",
+            confidence_status="unsupported",
+            needs_retake=False,
+        )
+
     diagnosis = diagnose_with_kindwise(image_bytes, latitude=lat, longitude=lon)
 
     crops = diagnosis.get("crops", [])
@@ -233,6 +517,9 @@ def run_diagnosis(
             diseases=[],
             advice_text=_fallback_diagnosis_advice(False, None),
             used_fallback=False,
+            provider="kindwise_crop_health",
+            confidence_status="not_plant",
+            needs_retake=True,
         )
 
     profile_context = build_profile_context(
@@ -269,5 +556,8 @@ def run_diagnosis(
         diseases=diseases,
         advice_text=advice_text,
         used_fallback=used_fallback,
+        provider="kindwise_crop_health",
+        confidence_status="confident",
+        needs_retake=False,
     )
 

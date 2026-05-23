@@ -1,6 +1,6 @@
 from functools import lru_cache
 
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -33,9 +33,29 @@ class Settings(BaseSettings):
     isda_username: str | None = None
     isda_password: str | None = None
 
-    kindwise_api_key: str | None = None
+    kindwise_plant_id_api_key: str | None = None
+    kindwise_crop_health_api_key: str | None = None
+
+    sorghum_model_path: str = "backend/model/farmly_sorghum_efficientnet_b0_best.pt"
+    sorghum_model_server_url: str = "http://127.0.0.1:8001"
+    sorghum_model_server_timeout_seconds: int = 30
+    plant_id_sorghum_threshold: float = 0.35
+    plant_id_supported_crop_threshold: float = 0.40
+    sorghum_confident_threshold: float = 0.60
+    sorghum_uncertain_threshold: float = 0.40
 
     debug_reset_token: str | None = None
+
+    @field_validator("debug", mode="before")
+    @classmethod
+    def parse_debug_mode(cls, value):
+        if isinstance(value, str):
+            normalized = value.strip().lower()
+            if normalized in {"release", "production", "prod"}:
+                return False
+            if normalized in {"debug", "development", "dev"}:
+                return True
+        return value
 
 
 @lru_cache
