@@ -1,7 +1,5 @@
-"use client";
-
-import { useEffect, useState } from "react";
-import { useRouter } from "next/navigation";
+﻿import { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { AlertTriangle, CheckCircle, Globe, Loader2, MapPin, Search } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,41 +7,20 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 
-type LocationData = {
-  latitude: number;
-  longitude: number;
-  accuracy: number;
-  address?: string;
-};
-
-type PhotonFeature = {
-  properties?: {
-    name?: string;
-    country?: string;
-  };
-  geometry: {
-    coordinates: [number, number];
-  };
-};
-
-type AuthMeResponse = {
-  onboarding_completed: boolean;
-};
-
-function toLocationString(locationData: LocationData) {
+function toLocationString(locationData) {
   return `${locationData.latitude.toFixed(6)},${locationData.longitude.toFixed(6)}`;
 }
 
 export default function OnboardingLocationPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { accessToken, isHydrated } = useAuth();
 
   const [isDetecting, setIsDetecting] = useState(false);
-  const [locationData, setLocationData] = useState<LocationData | null>(null);
+  const [locationData, setLocationData] = useState(null);
   const [error, setError] = useState("");
   const [showManualInput, setShowManualInput] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
-  const [searchResults, setSearchResults] = useState<PhotonFeature[]>([]);
+  const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
   const isMobile =
     typeof navigator !== "undefined" &&
@@ -54,27 +31,27 @@ export default function OnboardingLocationPage() {
   useEffect(() => {
     if (!isHydrated) return;
     if (!accessToken) {
-      router.replace("/auth-options");
+      navigate("/auth-options", { replace: true });
     }
-  }, [accessToken, isHydrated, router]);
+  }, [accessToken, isHydrated, navigate]);
 
   useEffect(() => {
     if (!accessToken) return;
     api
-      .get<AuthMeResponse>("/api/auth/me")
+      .get("/api/auth/me")
       .then(({ data }) => {
         if (data?.onboarding_completed) {
-          router.replace("/main-page");
+          navigate("/main-page", { replace: true });
         }
       })
       .catch(() => {});
-  }, [accessToken, router]);
+  }, [accessToken, navigate]);
 
-  function persistLocation(nextLocation: LocationData) {
+  function persistLocation(nextLocation) {
     setLocationData(nextLocation);
     sessionStorage.setItem("farmly_onboarding_location", JSON.stringify(nextLocation));
     sessionStorage.setItem("farmly_onboarding_location_string", toLocationString(nextLocation));
-    setTimeout(() => router.push("/onboarding/language"), 900);
+    setTimeout(() => navigate("/onboarding/language"), 900);
   }
 
   function detectLocation() {
@@ -117,7 +94,7 @@ export default function OnboardingLocationPage() {
     );
   }
 
-  async function searchLocation(query: string) {
+  async function searchLocation(query) {
     if (!query.trim()) {
       setSearchResults([]);
       return;
@@ -126,7 +103,7 @@ export default function OnboardingLocationPage() {
     try {
       const response = await fetch(`https://photon.komoot.io/api/?q=${encodeURIComponent(query)}`);
       const data = await response.json();
-      const features: PhotonFeature[] = Array.isArray(data?.features) ? data.features.slice(0, 5) : [];
+      const features = Array.isArray(data?.features) ? data.features.slice(0, 5) : [];
       setSearchResults(features);
     } catch {
       setSearchResults([]);
@@ -135,12 +112,12 @@ export default function OnboardingLocationPage() {
     }
   }
 
-  function handleSearchInput(value: string) {
+  function handleSearchInput(value) {
     setSearchQuery(value);
     searchLocation(value);
   }
 
-  function selectLocation(feature: PhotonFeature) {
+  function selectLocation(feature) {
     const [longitude, latitude] = feature.geometry.coordinates || [];
     if (typeof latitude !== "number" || typeof longitude !== "number") return;
 

@@ -1,29 +1,27 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+﻿import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { api } from "@/lib/api";
 import { useAuth } from "@/contexts/AuthContext";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import type { AxiosError } from "axios";
 
-function extractErrorMessage(error: unknown) {
-  const axiosError = error as AxiosError<{ detail?: string }>;
-  return (
-    axiosError?.response?.data?.detail ||
-    axiosError?.message ||
-    "Something went wrong. Please try again."
-  );
+function extractErrorMessage(error) {
+  const detail = error?.response?.data?.detail;
+  if (typeof detail === "string") return detail;
+  if (Array.isArray(detail)) {
+    const msgs = detail.map((d) => d?.msg).filter(Boolean);
+    if (msgs.length) return msgs.join(", ");
+  }
+  return error?.message || "Something went wrong. Please try again.";
 }
 
 export default function AuthOptionsPage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { accessToken, isHydrated, setToken } = useAuth();
 
-  const [mode, setMode] = useState<"signin" | "signup">("signin");
+  const [mode, setMode] = useState("signin");
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
@@ -42,36 +40,33 @@ export default function AuthOptionsPage() {
     password: "",
     confirm_password: "",
   });
-  const [debugOtp, setDebugOtp] = useState<string | null>(null);
+  const [debugOtp, setDebugOtp] = useState(null);
 
   useEffect(() => {
     if (isHydrated && accessToken) {
-      router.replace("/main-page");
+      navigate("/main-page", { replace: true });
     }
-  }, [accessToken, isHydrated, router]);
+  }, [accessToken, isHydrated, navigate]);
 
-  const canSubmitSignIn = useMemo(() => {
-    return signinData.phone_number.trim().length >= 9 && signinData.password.length >= 8;
-  }, [signinData]);
+  const canSubmitSignIn = useMemo(
+    () => signinData.phone_number.trim().length >= 9 && signinData.password.length >= 8,
+    [signinData]
+  );
 
-  const canSubmitRequestOtp = useMemo(() => {
-    return (
-      signupData.full_name.trim().length >= 2 &&
-      signupData.phone_number.trim().length >= 9
-    );
-  }, [signupData]);
+  const canSubmitRequestOtp = useMemo(
+    () => signupData.full_name.trim().length >= 2 && signupData.phone_number.trim().length >= 9,
+    [signupData]
+  );
 
-  const canSubmitVerifyOtp = useMemo(() => {
-    return signupData.otp_code.trim().length >= 4;
-  }, [signupData]);
+  const canSubmitVerifyOtp = useMemo(() => signupData.otp_code.trim().length >= 4, [signupData]);
 
-  const canSubmitSetPassword = useMemo(() => {
-    return (
+  const canSubmitSetPassword = useMemo(
+    () =>
       signupData.password.length >= 8 &&
       signupData.confirm_password.length >= 8 &&
-      signupData.password === signupData.confirm_password
-    );
-  }, [signupData]);
+      signupData.password === signupData.confirm_password,
+    [signupData]
+  );
 
   async function handleLogin() {
     if (!canSubmitSignIn) return;
@@ -84,11 +79,7 @@ export default function AuthOptionsPage() {
         password: signinData.password,
       });
       setToken(data.access_token);
-      if (data?.user?.onboarding_completed) {
-        router.push("/main-page");
-      } else {
-        router.push("/onboarding/location");
-      }
+      navigate(data?.user?.onboarding_completed ? "/main-page" : "/onboarding/location");
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
@@ -152,7 +143,7 @@ export default function AuthOptionsPage() {
         password: signupData.password,
       });
       setToken(data.access_token);
-      router.push("/onboarding/location");
+      navigate("/onboarding/location");
     } catch (err) {
       setError(extractErrorMessage(err));
     } finally {
@@ -233,11 +224,7 @@ export default function AuthOptionsPage() {
                     }
                   />
                 </div>
-                <Button
-                  className="w-full"
-                  onClick={handleLogin}
-                  disabled={isLoading || !canSubmitSignIn}
-                >
+                <Button className="w-full" onClick={handleLogin} disabled={isLoading || !canSubmitSignIn}>
                   {isLoading ? "Signing in..." : "Sign In"}
                 </Button>
               </div>
@@ -293,17 +280,10 @@ export default function AuthOptionsPage() {
                       />
                     </div>
                     <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                      <Button
-                        variant="outline"
-                        onClick={handleRequestOtp}
-                        disabled={isLoading}
-                      >
+                      <Button variant="outline" onClick={handleRequestOtp} disabled={isLoading}>
                         {isLoading ? "Sending..." : "Resend OTP"}
                       </Button>
-                      <Button
-                        onClick={handleVerifyOtp}
-                        disabled={isLoading || !canSubmitVerifyOtp}
-                      >
+                      <Button onClick={handleVerifyOtp} disabled={isLoading || !canSubmitVerifyOtp}>
                         {isLoading ? "Verifying..." : "Verify OTP"}
                       </Button>
                     </div>
@@ -337,10 +317,7 @@ export default function AuthOptionsPage() {
                         placeholder="Re-enter your password"
                         value={signupData.confirm_password}
                         onChange={(e) =>
-                          setSignupData((prev) => ({
-                            ...prev,
-                            confirm_password: e.target.value,
-                          }))
+                          setSignupData((prev) => ({ ...prev, confirm_password: e.target.value }))
                         }
                       />
                     </div>
