@@ -1,4 +1,4 @@
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 
 class SimilarImage(BaseModel):
@@ -9,15 +9,16 @@ class SimilarImage(BaseModel):
 class CropCandidate(BaseModel):
     name: str | None = None
     scientific_name: str | None = None
+    common_names: list[str] = Field(default_factory=list)
     probability: float | None = None
-    similar_images: list[SimilarImage] = []
+    similar_images: list[SimilarImage] = Field(default_factory=list)
 
 
 class DiseaseCandidate(BaseModel):
     name: str | None = None
     scientific_name: str | None = None
     probability: float | None = None
-    similar_images: list[SimilarImage] = []
+    similar_images: list[SimilarImage] = Field(default_factory=list)
 
 
 class DiagnosisResponse(BaseModel):
@@ -28,4 +29,7 @@ class DiagnosisResponse(BaseModel):
     diseases: list[DiseaseCandidate]
     advice_text: str
     used_fallback: bool
+    provider: str | None = None
+    confidence_status: str | None = None
+    needs_retake: bool = False
 
