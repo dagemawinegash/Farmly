@@ -1,3 +1,4 @@
+﻿@import url("https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap");
 @import "tailwindcss";
 @plugin "@tailwindcss/typography";
 
@@ -20,39 +21,27 @@
   --color-muted: var(--muted);
   --color-primary: var(--primary);
   --color-primary-foreground: var(--primary-foreground);
-  --font-sans: var(--font-sans);
-}
-
-@media (prefers-color-scheme: dark) {
-  :root {
-    --background: #0f172a;
-    --foreground: #f8fafc;
-    --card: #111827;
-    --border: #1f2937;
-    --muted: #94a3b8;
-    --primary: #22c55e;
-    --primary-foreground: #052e16;
-  }
 }
 
 * {
   box-sizing: border-box;
 }
 
-body {
-  background: var(--background);
-  color: var(--foreground);
-  font-family: var(--font-sans), ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
-  margin: 0;
-}
-
 html,
-body {
+body,
+#root {
   width: 100%;
+  min-height: 100%;
   overflow-x: hidden;
 }
 
-/* Custom Scrollbar for Chat Areas */
+body {
+  margin: 0;
+  background: var(--background);
+  color: var(--foreground);
+  font-family: "Outfit", ui-sans-serif, system-ui, -apple-system, Segoe UI, sans-serif;
+}
+
 .custom-scrollbar::-webkit-scrollbar {
   width: 6px;
   height: 6px;

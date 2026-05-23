@@ -1,20 +1,15 @@
-import { useState, useRef, FormEvent, ChangeEvent } from "react";
+import { useState, useRef } from "react";
 import { Send, Image as ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ChatInputProps {
-  onSend: (text: string, image: File | null) => void;
-  disabled?: boolean;
-}
-
-export function ChatInput({ onSend, disabled }: ChatInputProps) {
+export function ChatInput({ onSend, disabled }) {
   const [text, setText] = useState("");
-  const [image, setImage] = useState<File | null>(null);
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
+  const [image, setImage] = useState(null);
+  const [previewUrl, setPreviewUrl] = useState(null);
+  const fileInputRef = useRef(null);
+  const textareaRef = useRef(null);
 
-  const handleTextChange = (e: ChangeEvent<HTMLTextAreaElement>) => {
+  const handleTextChange = (e) => {
     setText(e.target.value);
     if (textareaRef.current) {
       textareaRef.current.style.height = "auto";
@@ -22,7 +17,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     }
   };
 
-  const handleImageChange = (e: ChangeEvent<HTMLInputElement>) => {
+  const handleImageChange = (e) => {
     const file = e.target.files?.[0];
     if (file && file.type.startsWith("image/")) {
       setImage(file);
@@ -42,7 +37,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     }
   };
 
-  const handleSubmit = (e?: FormEvent) => {
+  const handleSubmit = (e) => {
     e?.preventDefault();
     if ((!text.trim() && !image) || disabled) return;
     
@@ -54,7 +49,7 @@ export function ChatInput({ onSend, disabled }: ChatInputProps) {
     }
   };
 
-  const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
+  const handleKeyDown = (e) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
       handleSubmit();

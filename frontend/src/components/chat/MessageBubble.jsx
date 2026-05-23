@@ -1,20 +1,14 @@
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
-import { ChatMessageResponse } from "@/lib/chat";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Bot, User } from "lucide-react";
 
-function cn(...inputs: (string | undefined | null | false)[]) {
+function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-interface MessageBubbleProps {
-  message: ChatMessageResponse;
-  isDevMode?: boolean;
-}
-
-export function MessageBubble({ message, isDevMode }: MessageBubbleProps) {
+export function MessageBubble({ message, isDevMode }) {
   const isUser = message.sender === "user";
 
   return (
@@ -38,7 +32,7 @@ export function MessageBubble({ message, isDevMode }: MessageBubbleProps) {
             "rounded-2xl px-4 py-3 text-sm",
             isUser 
               ? "bg-primary text-primary-foreground rounded-tr-sm" 
-              : "bg-muted text-foreground rounded-tl-sm border border-border/50 shadow-sm"
+              : "bg-card text-foreground rounded-tl-sm border border-border shadow-sm"
           )}>
             {isUser ? (
               <p className="whitespace-pre-wrap">{message.content}</p>

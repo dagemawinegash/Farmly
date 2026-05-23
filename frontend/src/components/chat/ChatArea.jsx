@@ -1,23 +1,13 @@
 import { useEffect, useRef } from "react";
-import { ChatMessageResponse } from "@/lib/chat";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
 import { Menu, Sprout, CloudRain, Bug, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 
-interface ChatAreaProps {
-  messages: ChatMessageResponse[];
-  onSendMessage: (text: string, image: File | null) => void;
-  isLoading: boolean;
-  onOpenSidebar: () => void;
-  isDevMode: boolean;
-  setIsDevMode: (val: boolean) => void;
-}
-
 const QUICK_ACTIONS = [
   { icon: Sprout, label: "Recommend a crop", text: "Can you recommend a crop suitable for my location?" },
   { icon: CloudRain, label: "Check the weather", text: "What is the weather forecast for the next few days?" },
-  { icon: Bug, label: "Diagnose my plant", text: "I have a problem with my plant. (Upload a photo)" },
+  { icon: Bug, label: "Diagnose my plant", text: "I need help diagnosing a problem with my plant. Should I upload a photo?" },
   { icon: Leaf, label: "Fertilizer advice", text: "What fertilizer should I use for my farm?" },
 ];
 
@@ -28,8 +18,8 @@ export function ChatArea({
   onOpenSidebar,
   isDevMode,
   setIsDevMode
-}: ChatAreaProps) {
-  const bottomRef = useRef<HTMLDivElement>(null);
+}) {
+  const bottomRef = useRef(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });

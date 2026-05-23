@@ -1,5 +1,4 @@
-import { cn } from "@/lib/utils";
-import type { ButtonHTMLAttributes } from "react";
+﻿import { cn } from "@/lib/utils";
 
 const variantClass = {
   primary: "bg-primary text-primary-foreground hover:opacity-90",
@@ -11,14 +10,7 @@ const sizeClass = {
   sm: "h-9 px-3 text-sm",
   md: "h-10 px-4 text-sm",
   lg: "h-11 px-5 text-base",
-};
-
-type ButtonVariant = keyof typeof variantClass;
-type ButtonSize = keyof typeof sizeClass;
-
-type ButtonProps = ButtonHTMLAttributes<HTMLButtonElement> & {
-  variant?: ButtonVariant;
-  size?: ButtonSize;
+  icon: "h-9 w-9",
 };
 
 export function Button({
@@ -27,12 +19,12 @@ export function Button({
   size = "md",
   type = "button",
   ...props
-}: ButtonProps) {
+}) {
   return (
     <button
       type={type}
       className={cn(
-        "inline-flex items-center justify-center rounded-[var(--radius)] font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed",
+        "inline-flex items-center justify-center rounded-[var(--radius)] font-medium transition-colors disabled:cursor-not-allowed disabled:opacity-60",
         variantClass[variant],
         sizeClass[size],
         className

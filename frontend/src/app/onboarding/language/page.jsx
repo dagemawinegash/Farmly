@@ -1,7 +1,5 @@
-"use client";
-
-import { useEffect, useMemo, useState } from "react";
-import { useRouter } from "next/navigation";
+﻿import { useEffect, useMemo, useState } from "react";
+import { useNavigate } from "react-router-dom";
 import { ArrowLeft, ArrowRight, CheckCircle, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -9,12 +7,8 @@ import { useAuth } from "@/contexts/AuthContext";
 import { SUPPORTED_LANGUAGES, useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/lib/api";
 
-type AuthMeResponse = {
-  onboarding_completed: boolean;
-};
-
 export default function OnboardingLanguagePage() {
-  const router = useRouter();
+  const navigate = useNavigate();
   const { accessToken, isHydrated } = useAuth();
   const { language, setLanguage } = useLanguage();
   const [selectedLanguage, setSelectedLanguage] = useState(language || "en");
@@ -22,21 +16,21 @@ export default function OnboardingLanguagePage() {
   useEffect(() => {
     if (!isHydrated) return;
     if (!accessToken) {
-      router.replace("/auth-options");
+      navigate("/auth-options", { replace: true });
     }
-  }, [accessToken, isHydrated, router]);
+  }, [accessToken, isHydrated, navigate]);
 
   useEffect(() => {
     if (!accessToken) return;
     api
-      .get<AuthMeResponse>("/api/auth/me")
+      .get("/api/auth/me")
       .then(({ data }) => {
         if (data?.onboarding_completed) {
-          router.replace("/main-page");
+          navigate("/main-page", { replace: true });
         }
       })
       .catch(() => {});
-  }, [accessToken, router]);
+  }, [accessToken, navigate]);
 
   const canContinue = useMemo(() => Boolean(selectedLanguage), [selectedLanguage]);
 
@@ -44,7 +38,7 @@ export default function OnboardingLanguagePage() {
     if (!canContinue) return;
     setLanguage(selectedLanguage);
     sessionStorage.setItem("farmly_onboarding_language", selectedLanguage);
-    router.push("/onboarding/farming");
+    navigate("/onboarding/farming");
   }
 
   if (!isHydrated) return null;
@@ -90,7 +84,7 @@ export default function OnboardingLanguagePage() {
               <Button
                 type="button"
                 variant="outline"
-                onClick={() => router.push("/onboarding/location")}
+                onClick={() => navigate("/onboarding/location")}
                 className="border-green-200 text-green-700 hover:bg-green-50"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />

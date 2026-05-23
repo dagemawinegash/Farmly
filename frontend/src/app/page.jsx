@@ -1,7 +1,5 @@
-"use client";
-
-import { useEffect, useRef, useState } from "react";
-import Link from "next/link";
+﻿import { useEffect, useRef, useState } from "react";
+import { Link } from "react-router-dom";
 import { Globe, Leaf } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SUPPORTED_LANGUAGES, useLanguage } from "@/contexts/LanguageContext";
@@ -19,7 +17,7 @@ export default function HomePage() {
   const { language, setLanguage } = useLanguage();
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [scrolled, setScrolled] = useState(false);
-  const languageMenuRef = useRef<HTMLDivElement | null>(null);
+  const languageMenuRef = useRef(null);
 
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 30);
@@ -28,11 +26,8 @@ export default function HomePage() {
   }, []);
 
   useEffect(() => {
-    function handleOutsideClick(event: MouseEvent) {
-      if (
-        languageMenuRef.current &&
-        !languageMenuRef.current.contains(event.target as Node)
-      ) {
+    function handleOutsideClick(event) {
+      if (languageMenuRef.current && !languageMenuRef.current.contains(event.target)) {
         setShowLanguageDropdown(false);
       }
     }
@@ -47,13 +42,13 @@ export default function HomePage() {
         className={[
           "fixed z-50 flex w-full items-center justify-between px-4 py-3 transition-all duration-300 sm:px-6",
           scrolled
-            ? "left-1/2 top-4 w-[95vw] max-w-3xl -translate-x-1/2 rounded-3xl border border-border bg-white/95 shadow-lg dark:bg-gray-900/95"
+            ? "left-1/2 top-4 w-[95vw] max-w-3xl -translate-x-1/2 rounded-3xl border border-border bg-white/95 shadow-lg"
             : "left-0 top-0 border-none bg-transparent",
         ].join(" ")}
       >
         <span
           className={`flex items-center gap-2 text-lg font-bold transition-colors duration-300 ${
-            scrolled ? "text-black dark:text-white" : "text-white"
+            scrolled ? "text-black" : "text-white"
           }`}
         >
           <Leaf className={`h-6 w-6 ${scrolled ? "text-green-600" : "text-white"}`} />
@@ -67,9 +62,7 @@ export default function HomePage() {
               size="sm"
               onClick={() => setShowLanguageDropdown((v) => !v)}
               className={`px-3 py-1 text-xs font-medium transition-all duration-300 ${
-                scrolled
-                  ? "text-gray-700 hover:bg-gray-100 dark:text-gray-200 dark:hover:bg-gray-800"
-                  : "text-white hover:bg-white/20"
+                scrolled ? "text-gray-700 hover:bg-gray-100" : "text-white hover:bg-white/20"
               }`}
             >
               <Globe className="mr-1 h-4 w-4" />
@@ -77,7 +70,7 @@ export default function HomePage() {
             </Button>
 
             <div
-              className={`absolute right-0 z-50 mt-2 w-44 rounded-md border border-gray-200 bg-white shadow-lg transition-all duration-200 ease-out dark:border-gray-700 dark:bg-gray-900 ${
+              className={`absolute right-0 z-50 mt-2 w-44 rounded-md border border-gray-200 bg-white shadow-lg transition-all duration-200 ease-out ${
                 showLanguageDropdown
                   ? "visible translate-y-0 scale-100 opacity-100"
                   : "invisible -translate-y-2 scale-95 opacity-0"
@@ -91,10 +84,8 @@ export default function HomePage() {
                       setLanguage(lang.code);
                       setShowLanguageDropdown(false);
                     }}
-                    className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 dark:hover:bg-gray-800 ${
-                      language === lang.code
-                        ? "bg-green-50 text-green-700 dark:bg-green-950/50 dark:text-green-300"
-                        : "text-gray-700 dark:text-gray-200"
+                    className={`flex w-full items-center gap-2 px-4 py-2 text-left text-sm hover:bg-gray-100 ${
+                      language === lang.code ? "bg-green-50 text-green-700" : "text-gray-700"
                     }`}
                   >
                     <span className="font-medium">{lang.tag}</span>
@@ -107,12 +98,10 @@ export default function HomePage() {
 
           <Button
             className={`px-3 py-1 text-xs font-medium transition-all duration-300 ${
-              scrolled
-                ? "bg-primary text-white hover:bg-green-900"
-                : "bg-white text-gray-900 hover:bg-white/80"
+              scrolled ? "bg-primary text-white hover:bg-green-900" : "bg-white text-gray-900 hover:bg-white/80"
             }`}
           >
-            <Link href="/auth-options">{COPY.signIn}</Link>
+            <Link to="/auth-options">{COPY.signIn}</Link>
           </Button>
         </div>
       </div>
@@ -126,12 +115,10 @@ export default function HomePage() {
           <h1 className="max-w-4xl text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
             {COPY.heroTitle}
           </h1>
-          <p className="mt-4 max-w-2xl text-sm text-green-100 sm:text-base md:text-lg">
-            {COPY.heroSubtitle}
-          </p>
+          <p className="mt-4 max-w-2xl text-sm text-green-100 sm:text-base md:text-lg">{COPY.heroSubtitle}</p>
           <div className="mt-7">
             <Button className="bg-green-600 px-6 py-2 text-white hover:bg-green-700">
-              <Link href="/auth-options">{COPY.getStarted}</Link>
+              <Link to="/auth-options">{COPY.getStarted}</Link>
             </Button>
           </div>
         </div>
