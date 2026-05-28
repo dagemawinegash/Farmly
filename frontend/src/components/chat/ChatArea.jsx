@@ -17,7 +17,9 @@ export function ChatArea({
   isLoading, 
   onOpenSidebar,
   isDevMode,
-  setIsDevMode
+  setIsDevMode,
+  onSpeakMessage,
+  speakingMessageId
 }) {
   const bottomRef = useRef(null);
 
@@ -84,7 +86,13 @@ export function ChatArea({
         ) : (
           <div className="mx-auto max-w-3xl">
             {messages.map((msg) => (
-              <MessageBubble key={msg.message_id} message={msg} isDevMode={isDevMode} />
+              <MessageBubble
+                key={msg.message_id}
+                message={msg}
+                isDevMode={isDevMode}
+                onSpeak={onSpeakMessage}
+                isSpeaking={speakingMessageId === msg.message_id}
+              />
             ))}
             {isLoading && (
               <div className="flex items-center gap-2 text-muted-foreground p-4">

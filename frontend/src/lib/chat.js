@@ -25,13 +25,17 @@ export const chatApi = {
     });
   },
 
-  sendMessage: async (sessionId, message, imageFile) => {
+  sendMessage: async (sessionId, message, imageFile, audioFile) => {
     const formData = new FormData();
     if (message) {
       formData.append("message", message);
     }
     if (imageFile) {
       formData.append("image", imageFile);
+    }
+    if (audioFile) {
+      const extension = audioFile.type.includes("ogg") ? "ogg" : "webm";
+      formData.append("audio", audioFile, `voice-message.${extension}`);
     }
 
     return api.post(`/api/chat/sessions/${sessionId}/messages`, formData, {

@@ -1,8 +1,9 @@
-﻿import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { api } from "@/lib/api";
 import { chatApi } from "@/lib/chat";
+import { voiceApi } from "@/lib/voice";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatArea } from "@/components/chat/ChatArea";
 
@@ -21,6 +22,18 @@ export default function MainPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isDevMode, setIsDevMode] = useState(DEBUG_ENABLED);
+  const [speakingMessageId, setSpeakingMessageId] = useState(null);
+  const audioElementRef = useRef(null);
+  const audioUrlRef = useRef(null);
+
+  useEffect(() => {
+    return () => {
+      audioElementRef.current?.pause();
+      if (audioUrlRef.current) {
+        URL.revokeObjectURL(audioUrlRef.current);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -125,14 +138,78 @@ export default function MainPage() {
     []
   );
 
-  const handleSendMessage = async (text, image) => {
+  const playAssistantAudio = async (message) => {
+    if (!message?.content) return;
+
+    audioElementRef.current?.pause();
+    if (audioUrlRef.current) {
+      URL.revokeObjectURL(audioUrlRef.current);
+      audioUrlRef.current = null;
+    }
+
+    setSpeakingMessageId(message.message_id);
+    try {
+      const { data } = await voiceApi.synthesize(message.content);
+      const audioUrl = URL.createObjectURL(data);
+      const audio = new Audio(audioUrl);
+
+      audioUrlRef.current = audioUrl;
+      audioElementRef.current = audio;
+
+      const resetAudioState = () => {
+        if (audioUrlRef.current === audioUrl) {
+          URL.revokeObjectURL(audioUrl);
+          audioUrlRef.current = null;
+        }
+        if (audioElementRef.current === audio) {
+          audioElementRef.current = null;
+        }
+        setSpeakingMessageId(null);
+      };
+
+      audio.onended = resetAudioState;
+      audio.onerror = resetAudioState;
+      await audio.play();
+    } catch (err) {
+      console.error("Failed to play assistant audio", err);
+      setSpeakingMessageId(null);
+    }
+  };
+
+  const addTempUserMessage = (sessionId, content) => {
+    const trimmed = content?.trim();
+    if (!trimmed) return;
+
+    setMessages((prev) => [
+      ...prev,
+      {
+        message_id: `temp-${Date.now()}`,
+        session_id: sessionId,
+        sender: "user",
+        content: trimmed,
+        sequence_no: prev.length + 1,
+        created_at: new Date().toISOString(),
+      },
+    ]);
+  };
+
+  const handleSendMessage = async (text, image, audio) => {
     try {
       setIsLoading(true);
+      let outgoingText = text?.trim() || "";
+
+      if (audio) {
+        const { data } = await voiceApi.transcribe(audio);
+        outgoingText = data?.transcript?.trim() || "";
+        if (!outgoingText) {
+          throw new Error("Voice transcription returned no text.");
+        }
+      }
+
       let sessionId = activeSessionId;
       let wasNewSession = false;
-
       if (!sessionId) {
-        const titleSnippet = text?.trim() ? text.trim().slice(0, 30) : "Image Diagnosis";
+        const titleSnippet = outgoingText ? outgoingText.slice(0, 30) : "Image Diagnosis";
         const res = await chatApi.createSession(titleSnippet);
         sessionId = res.data.session_id;
         wasNewSession = true;
@@ -141,19 +218,11 @@ export default function MainPage() {
         setSessions((prev) => [res.data, ...prev]);
       }
 
-      if (text && !image) {
-        const tempUserMsg = {
-          message_id: `temp-${Date.now()}`,
-          session_id: sessionId,
-          sender: "user",
-          content: text,
-          sequence_no: messages.length + 1,
-          created_at: new Date().toISOString(),
-        };
-        setMessages((prev) => [...prev, tempUserMsg]);
+      if (outgoingText && (!image || audio)) {
+        addTempUserMessage(sessionId, outgoingText);
       }
 
-      const res = await chatApi.sendMessage(sessionId, text, image);
+      const res = await chatApi.sendMessage(sessionId, outgoingText, image, null);
       const { user_message, assistant_message, chosen_route } = res.data;
 
       if (chosen_route) {
@@ -165,11 +234,14 @@ export default function MainPage() {
         return [...filtered, user_message, assistant_message];
       });
 
-      if (wasNewSession && text?.trim()) {
-        await autoTitleFromFirstMessage(sessionId, text);
+      if (wasNewSession && user_message?.content) {
+        await autoTitleFromFirstMessage(sessionId, user_message.content);
       }
 
       await fetchSessions();
+      if (audio && assistant_message?.content) {
+        playAssistantAudio(assistant_message);
+      }
     } catch (err) {
       console.error("Failed to send message", err);
     } finally {
@@ -198,6 +270,8 @@ export default function MainPage() {
         onOpenSidebar={() => setIsSidebarOpen(true)}
         isDevMode={isDevMode}
         setIsDevMode={setIsDevMode}
+        onSpeakMessage={playAssistantAudio}
+        speakingMessageId={speakingMessageId}
       />
     </div>
   );
