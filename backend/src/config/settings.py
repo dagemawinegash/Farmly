@@ -4,6 +4,9 @@ from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
+DEFAULT_GOOGLE_TTS_VOICE_NAME = "en-US-Chirp3-HD-Aoede"
+
+
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(
         env_file=".env",
@@ -44,7 +47,27 @@ class Settings(BaseSettings):
     sorghum_confident_threshold: float = 0.60
     sorghum_uncertain_threshold: float = 0.40
 
+    google_cloud_project: str | None = None
+    google_application_credentials: str | None = None
+    google_cloud_location: str = "global"
+    google_stt_language_code: str = "en-US"
+    google_stt_model: str = "latest_short"
+    google_tts_language_code: str = "en-US"
+    google_tts_voice_name: str = DEFAULT_GOOGLE_TTS_VOICE_NAME
+    google_tts_audio_encoding: str = "MP3"
+    google_tts_speaking_rate: float = Field(default=0.96, ge=0.25, le=4.0)
+    voice_audio_max_bytes: int = 10 * 1024 * 1024
+
     debug_reset_token: str | None = None
+
+    @field_validator("google_tts_voice_name", mode="before")
+    @classmethod
+    def default_tts_voice(cls, value):
+        if value is None:
+            return DEFAULT_GOOGLE_TTS_VOICE_NAME
+        if isinstance(value, str) and not value.strip():
+            return DEFAULT_GOOGLE_TTS_VOICE_NAME
+        return value
 
     @field_validator("debug", mode="before")
     @classmethod

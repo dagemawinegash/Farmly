@@ -2,13 +2,13 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Bot, User } from "lucide-react";
+import { Bot, Loader2, User, Volume2 } from "lucide-react";
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-export function MessageBubble({ message, isDevMode }) {
+export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
   const isUser = message.sender === "user";
 
   return (
@@ -37,7 +37,7 @@ export function MessageBubble({ message, isDevMode }) {
             {isUser ? (
               <p className="whitespace-pre-wrap">{message.content}</p>
             ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none break-words">
+              <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-headings:text-foreground">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {message.content}
                 </ReactMarkdown>
@@ -45,9 +45,27 @@ export function MessageBubble({ message, isDevMode }) {
             )}
           </div>
           
-          <span className="text-[10px] text-muted-foreground px-1">
-            {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-          </span>
+          <div className="flex items-center gap-1 px-1">
+            <span className="text-[10px] text-muted-foreground">
+              {new Date(message.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+            </span>
+            {!isUser && onSpeak && (
+              <button
+                type="button"
+                onClick={() => onSpeak(message)}
+                className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
+                disabled={isSpeaking}
+                title="Play response"
+                aria-label="Play response"
+              >
+                {isSpeaking ? (
+                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                ) : (
+                  <Volume2 className="h-3.5 w-3.5" />
+                )}
+              </button>
+            )}
+          </div>
 
           {isDevMode && !isUser && message.chosen_route && (
             <div className="mt-1 bg-black/80 text-green-400 text-[10px] font-mono px-2 py-1 rounded w-fit border border-green-500/30 shadow-inner">

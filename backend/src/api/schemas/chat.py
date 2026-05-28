@@ -38,6 +38,7 @@ class ChatSendResponse(BaseModel):
     user_message: ChatMessageResponse
     assistant_message: ChatMessageResponse
     chosen_route: str | None = None
+    transcript: str | None = None
 
 
 class ChatDeleteResponse(BaseModel):

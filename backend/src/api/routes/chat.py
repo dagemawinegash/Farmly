@@ -14,9 +14,11 @@ from src.api.schemas.chat import (
     ChatSessionUpdateRequest,
 )
 from src.auth.dependencies import get_current_user
+from src.config.settings import get_settings
 from src.db.models.chat import ChatMessage, ChatSession
 from src.db.models.user import User, UserProfile
 from src.db.session import get_db
+from src.integrations.voice.google_stt import transcribe_audio
 from src.services.chat_orchestrator import run_chat_orchestrator
 
 
@@ -53,6 +55,31 @@ def _get_owned_session(db: Session, session_id: UUID, user_id: str) -> ChatSessi
         )
         .first()
     )
+
+
+def _read_audio_upload(audio: UploadFile) -> bytes:
+    content_type = (audio.content_type or "").lower()
+    if not content_type.startswith("audio/"):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded file must be an audio file.",
+        )
+
+    audio_bytes = audio.file.read()
+    if not audio_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Uploaded audio is empty.",
+        )
+
+    settings = get_settings()
+    if len(audio_bytes) > settings.voice_audio_max_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail="Uploaded audio is too large.",
+        )
+
+    return audio_bytes
 
 
 @router.post("/sessions", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
@@ -121,6 +148,7 @@ def send_message(
     session_id: UUID,
     message: str | None = Form(default=None),
     image: UploadFile | None = File(default=None),
+    audio: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ChatSendResponse:
@@ -132,10 +160,10 @@ def send_message(
         )
 
     text = (message or "").strip()
-    if image is None and not text:
+    if image is None and audio is None and not text:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Provide message or image",
+            detail="Provide message, image, or audio",
         )
 
     image_bytes: bytes | None = None
@@ -152,6 +180,25 @@ def send_message(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Uploaded image is empty.",
             )
+
+    transcript: str | None = None
+    if audio is not None:
+        audio_bytes = _read_audio_upload(audio)
+        try:
+            transcription = transcribe_audio(audio_bytes)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Voice transcription failed: {exc}",
+            ) from exc
+
+        transcript = transcription.transcript.strip()
+        if not transcript:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="Could not transcribe uploaded audio.",
+            )
+        text = transcript
 
     user_content = text if text else "[image uploaded for diagnosis]"
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
@@ -197,6 +244,7 @@ def send_message(
         user_message=_to_message_response(user_message),
         assistant_message=_to_message_response(assistant_message),
         chosen_route=chosen_route,
+        transcript=transcript,
     )
 
 
