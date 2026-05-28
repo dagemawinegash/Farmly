@@ -16,6 +16,10 @@ from src.api.schemas.auth import (
     SetPasswordRequest,
     UserResponse,
     VerifyOTPRequest,
+    ForgotPasswordRequest,
+    ForgotPasswordVerifyRequest,
+    ResetPasswordRequest,
+    ResetPasswordResponse,
 )
 from src.auth.dependencies import get_current_user
 from src.auth.jwt_utils import create_access_token, decode_access_token
@@ -26,6 +30,7 @@ from src.config.settings import get_settings
 from src.db.models.user import (
     OTPVerification,
     PhoneChangeVerification,
+    PasswordResetVerification,
     User,
     UserProfile,
 )
@@ -426,3 +431,157 @@ def confirm_phone_change(
         message="Phone number changed successfully",
         phone_number=current_user.phone_number,
     )
+
+
+@router.post("/forgot-password", response_model=OTPRequestedResponse)
+def forgot_password(
+    payload: ForgotPasswordRequest,
+    db: Session = Depends(get_db),
+) -> OTPRequestedResponse:
+    try:
+        phone_number = normalize_phone(payload.phone_number)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    user = db.query(User).filter(User.phone_number == phone_number).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No account found with this phone number")
+
+    if not user.is_active:
+        raise HTTPException(status_code=403, detail="User account is inactive")
+
+    db.query(PasswordResetVerification).filter(
+        PasswordResetVerification.phone_number == phone_number,
+        PasswordResetVerification.consumed.is_(False),
+    ).update({PasswordResetVerification.consumed: True}, synchronize_session=False)
+
+    otp_code = generate_otp_code()
+    record = PasswordResetVerification(
+        phone_number=phone_number,
+        otp_code_hash=hash_otp(phone_number, otp_code),
+        expires_at=otp_expiry_time(),
+        max_attempts=settings.otp_max_attempts,
+    )
+    db.add(record)
+    db.commit()
+
+    sms_text = f"Farmly password reset code: {otp_code}. Expires in {settings.otp_expire_minutes} minutes."
+    debug_otp: str | None = None
+    try:
+        send_sms(phone_number, sms_text)
+    except Exception as exc:
+        if settings.debug:
+            debug_otp = otp_code
+        else:
+            raise HTTPException(status_code=502, detail=f"Failed to send OTP SMS: {exc}")
+
+    if settings.debug and debug_otp is None:
+        debug_otp = otp_code
+
+    return OTPRequestedResponse(
+        message="Password reset OTP sent successfully",
+        expires_in_minutes=settings.otp_expire_minutes,
+        debug_otp=debug_otp,
+    )
+
+
+@router.post("/forgot-password/verify", response_model=OTPVerifyResponse)
+def forgot_password_verify(
+    payload: ForgotPasswordVerifyRequest,
+    db: Session = Depends(get_db),
+) -> OTPVerifyResponse:
+    try:
+        phone_number = normalize_phone(payload.phone_number)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    record = (
+        db.query(PasswordResetVerification)
+        .filter(
+            PasswordResetVerification.phone_number == phone_number,
+            PasswordResetVerification.consumed.is_(False),
+        )
+        .order_by(PasswordResetVerification.created_at.desc())
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=404, detail="No password reset OTP request found")
+
+    now = datetime.now(timezone.utc)
+    expires_at = record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < now:
+        record.consumed = True
+        db.commit()
+        raise HTTPException(status_code=400, detail="OTP expired")
+
+    if record.attempts >= record.max_attempts:
+        record.consumed = True
+        db.commit()
+        raise HTTPException(status_code=429, detail="Maximum OTP attempts exceeded")
+
+    if not verify_otp_hash(phone_number, payload.otp_code, record.otp_code_hash):
+        record.attempts += 1
+        db.commit()
+        raise HTTPException(status_code=400, detail="Invalid OTP")
+
+    record.verified = True
+    record.verified_at = now
+    db.commit()
+
+    reset_token = create_access_token(subject=phone_number, expires_minutes=15)
+    return OTPVerifyResponse(
+        message="OTP verified. You may now reset your password.",
+        setup_token=reset_token,
+    )
+
+
+@router.post("/reset-password", response_model=ResetPasswordResponse)
+def reset_password(
+    payload: ResetPasswordRequest,
+    db: Session = Depends(get_db),
+) -> ResetPasswordResponse:
+    if payload.new_password != payload.confirm_password:
+        raise HTTPException(status_code=400, detail="Passwords do not match")
+
+    try:
+        phone_number = normalize_phone(payload.phone_number)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc))
+
+    token_payload = decode_access_token(payload.reset_token)
+    if token_payload is None or token_payload.get("sub") != phone_number:
+        raise HTTPException(status_code=401, detail="Invalid or expired reset token")
+
+    record = (
+        db.query(PasswordResetVerification)
+        .filter(
+            PasswordResetVerification.phone_number == phone_number,
+            PasswordResetVerification.consumed.is_(False),
+            PasswordResetVerification.verified.is_(True),
+        )
+        .order_by(PasswordResetVerification.created_at.desc())
+        .first()
+    )
+    if not record:
+        raise HTTPException(status_code=400, detail="No verified OTP found. Please restart the reset process.")
+
+    now = datetime.now(timezone.utc)
+    expires_at = record.expires_at
+    if expires_at.tzinfo is None:
+        expires_at = expires_at.replace(tzinfo=timezone.utc)
+    if expires_at < now:
+        record.consumed = True
+        db.commit()
+        raise HTTPException(status_code=400, detail="Reset session expired. Please restart.")
+
+    user = db.query(User).filter(User.phone_number == phone_number).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    user.password_hash = hash_password(payload.new_password)
+    record.consumed = True
+    db.commit()
+
+    return ResetPasswordResponse(message="Password reset successfully. You can now sign in.")
