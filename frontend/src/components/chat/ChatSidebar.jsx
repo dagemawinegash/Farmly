@@ -1,5 +1,6 @@
 import { useState } from "react";
-import { Plus, MessageSquare, X, Pencil, Trash2, Check } from "lucide-react";
+import { Link } from "react-router-dom";
+import { Plus, MessageSquare, X, Pencil, Trash2, Check, Settings } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
@@ -65,7 +66,7 @@ export function ChatSidebar({
         )}
       >
         <div className="flex items-center justify-between p-4 border-b border-border">
-          <Button onClick={onNewSession} className="w-full justify-start gap-2" variant="default">
+          <Button onClick={onNewSession} className="w-full justify-start gap-2">
             <Plus className="h-4 w-4" />
             New Chat
           </Button>
@@ -159,6 +160,19 @@ export function ChatSidebar({
                 No previous chats.
               </p>
             )}
+          </div>
+        </div>
+
+        <div className="border-t border-border p-3">
+          <div className="grid gap-1">
+            <Link
+              to="/settings"
+              onClick={() => setIsOpen(false)}
+              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+            >
+              <Settings className="h-4 w-4" />
+              Settings
+            </Link>
           </div>
         </div>
       </aside>
