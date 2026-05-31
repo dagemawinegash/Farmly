@@ -25,6 +25,7 @@ export default function MainPage() {
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
   const audioElementRef = useRef(null);
   const audioUrlRef = useRef(null);
+  const audioRequestIdRef = useRef(0);
 
   useEffect(() => {
     return () => {
@@ -138,18 +139,34 @@ export default function MainPage() {
     []
   );
 
-  const playAssistantAudio = async (message) => {
-    if (!message?.content) return;
-
+  const stopAssistantAudio = () => {
+    audioRequestIdRef.current += 1;
     audioElementRef.current?.pause();
     if (audioUrlRef.current) {
       URL.revokeObjectURL(audioUrlRef.current);
       audioUrlRef.current = null;
     }
+    audioElementRef.current = null;
+    setSpeakingMessageId(null);
+  };
+
+  const playAssistantAudio = async (message) => {
+    if (!message?.content) return;
+
+    if (speakingMessageId === message.message_id) {
+      stopAssistantAudio();
+      return;
+    }
+
+    stopAssistantAudio();
+    const requestId = audioRequestIdRef.current;
 
     setSpeakingMessageId(message.message_id);
     try {
       const { data } = await voiceApi.synthesize(message.content);
+      if (audioRequestIdRef.current !== requestId) {
+        return;
+      }
       const audioUrl = URL.createObjectURL(data);
       const audio = new Audio(audioUrl);
 
@@ -172,18 +189,19 @@ export default function MainPage() {
       await audio.play();
     } catch (err) {
       console.error("Failed to play assistant audio", err);
-      setSpeakingMessageId(null);
+      stopAssistantAudio();
     }
   };
 
   const addTempUserMessage = (sessionId, content) => {
     const trimmed = content?.trim();
-    if (!trimmed) return;
+    if (!trimmed) return null;
+    const messageId = `temp-${Date.now()}`;
 
     setMessages((prev) => [
       ...prev,
       {
-        message_id: `temp-${Date.now()}`,
+        message_id: messageId,
         session_id: sessionId,
         sender: "user",
         content: trimmed,
@@ -191,25 +209,32 @@ export default function MainPage() {
         created_at: new Date().toISOString(),
       },
     ]);
+    return messageId;
+  };
+
+  const updateTempUserMessage = (messageId, content) => {
+    if (!messageId || !content?.trim()) return;
+    setMessages((prev) =>
+      prev.map((message) =>
+        message.message_id === messageId ? { ...message, content: content.trim() } : message
+      )
+    );
   };
 
   const handleSendMessage = async (text, image, audio) => {
+    let tempMessageId = null;
     try {
       setIsLoading(true);
       let outgoingText = text?.trim() || "";
 
-      if (audio) {
-        const { data } = await voiceApi.transcribe(audio);
-        outgoingText = data?.transcript?.trim() || "";
-        if (!outgoingText) {
-          throw new Error("Voice transcription returned no text.");
-        }
-      }
-
       let sessionId = activeSessionId;
       let wasNewSession = false;
       if (!sessionId) {
-        const titleSnippet = outgoingText ? outgoingText.slice(0, 30) : "Image Diagnosis";
+        const titleSnippet = outgoingText
+          ? outgoingText.slice(0, 30)
+          : audio
+            ? "Voice message"
+            : "Image Diagnosis";
         const res = await chatApi.createSession(titleSnippet);
         sessionId = res.data.session_id;
         wasNewSession = true;
@@ -218,8 +243,16 @@ export default function MainPage() {
         setSessions((prev) => [res.data, ...prev]);
       }
 
-      if (outgoingText && (!image || audio)) {
-        addTempUserMessage(sessionId, outgoingText);
+      if (audio) {
+        tempMessageId = addTempUserMessage(sessionId, "Transcribing voice...");
+        const { data } = await voiceApi.transcribe(audio);
+        outgoingText = data?.transcript?.trim() || "";
+        if (!outgoingText) {
+          throw new Error("Voice transcription returned no text.");
+        }
+        updateTempUserMessage(tempMessageId, outgoingText);
+      } else if (outgoingText && !image) {
+        tempMessageId = addTempUserMessage(sessionId, outgoingText);
       }
 
       const res = await chatApi.sendMessage(sessionId, outgoingText, image, null);
@@ -244,6 +277,9 @@ export default function MainPage() {
       }
     } catch (err) {
       console.error("Failed to send message", err);
+      if (tempMessageId) {
+        updateTempUserMessage(tempMessageId, "Voice transcription failed. Please try again.");
+      }
     } finally {
       setIsLoading(false);
     }

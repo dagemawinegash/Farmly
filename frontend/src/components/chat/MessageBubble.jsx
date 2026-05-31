@@ -2,7 +2,7 @@ import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
-import { Bot, Loader2, User, Volume2 } from "lucide-react";
+import { Bot, Square, User, Volume2 } from "lucide-react";
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
@@ -53,13 +53,17 @@ export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
               <button
                 type="button"
                 onClick={() => onSpeak(message)}
-                className="inline-flex h-6 w-6 items-center justify-center rounded-full text-muted-foreground transition-colors hover:bg-muted hover:text-foreground disabled:cursor-not-allowed disabled:opacity-60"
-                disabled={isSpeaking}
-                title="Play response"
-                aria-label="Play response"
+                className={cn(
+                  "inline-flex h-6 w-6 items-center justify-center rounded-full transition-colors hover:bg-muted",
+                  isSpeaking
+                    ? "text-red-600 hover:text-red-700"
+                    : "text-muted-foreground hover:text-foreground"
+                )}
+                title={isSpeaking ? "Stop response" : "Play response"}
+                aria-label={isSpeaking ? "Stop response" : "Play response"}
               >
                 {isSpeaking ? (
-                  <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                  <Square className="h-3.5 w-3.5 fill-current" />
                 ) : (
                   <Volume2 className="h-3.5 w-3.5" />
                 )}
