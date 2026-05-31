@@ -38,6 +38,10 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
     )
+    weather_alerts: Mapped[list["WeatherAlert"]] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+    )
 
 
 class UserProfile(Base):

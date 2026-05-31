@@ -6,6 +6,7 @@ import OnboardingLocationPage from "@/app/onboarding/location/page";
 import OnboardingLanguagePage from "@/app/onboarding/language/page";
 import OnboardingFarmingPage from "@/app/onboarding/farming/page";
 import SettingsPage from "@/app/settings/page";
+import AlertsPage from "@/app/alerts/page";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { LanguageProvider } from "@/contexts/LanguageContext";
 
@@ -21,6 +22,7 @@ export default function App() {
           <Route path="/onboarding/language" element={<OnboardingLanguagePage />} />
           <Route path="/onboarding/farming" element={<OnboardingFarmingPage />} />
           <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/alerts" element={<AlertsPage />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </LanguageProvider>

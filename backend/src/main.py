@@ -4,6 +4,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from src.api.routes.auth import router as auth_router
+from src.api.routes.alert import router as alert_router
 from src.api.routes.chat import router as chat_router
 from src.api.routes.debug import router as debug_router
 from src.api.routes.diagnosis import router as diagnosis_router
@@ -40,6 +41,7 @@ app.include_router(health_router)
 app.include_router(auth_router)
 app.include_router(profile_router)
 app.include_router(chat_router)
+app.include_router(alert_router)
 app.include_router(diagnosis_router)
 app.include_router(recommendation_router)
 app.include_router(voice_router)

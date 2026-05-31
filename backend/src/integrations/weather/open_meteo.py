@@ -68,6 +68,7 @@ def get_current_and_forecast(lat: float, lon: float, forecast_days: int = 3) -> 
             "temperature_2m_max",
             "temperature_2m_min",
             "rain_sum",
+            "wind_speed_10m_max",
         ],
         "forecast_days": forecast_days,
         "timezone": "auto",
@@ -87,6 +88,7 @@ def get_current_and_forecast(lat: float, lon: float, forecast_days: int = 3) -> 
     tmax = daily.get("temperature_2m_max", [])
     tmin = daily.get("temperature_2m_min", [])
     rain = daily.get("rain_sum", [])
+    wind = daily.get("wind_speed_10m_max", [])
     for i in range(min(len(dates), forecast_days)):
         days.append(
             {
@@ -95,6 +97,7 @@ def get_current_and_forecast(lat: float, lon: float, forecast_days: int = 3) -> 
                 "temp_max_c": tmax[i] if i < len(tmax) else None,
                 "temp_min_c": tmin[i] if i < len(tmin) else None,
                 "rain_mm": rain[i] if i < len(rain) else None,
+                "wind_speed_kph": wind[i] if i < len(wind) else None,
             }
         )
 
