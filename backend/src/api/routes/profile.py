@@ -4,12 +4,21 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.orm import Session
 
 from src.api.schemas.profile import (
+    AccountDeleteRequest,
+    AccountDeleteResponse,
     OnboardingCompleteRequest,
     ProfileResponse,
     ProfileUpdateRequest,
 )
 from src.auth.dependencies import get_current_user
-from src.db.models.user import User, UserProfile
+from src.auth.password import verify_password
+from src.db.models.user import (
+    OTPVerification,
+    PasswordResetVerification,
+    PhoneChangeVerification,
+    User,
+    UserProfile,
+)
 from src.db.session import get_db
 
 
@@ -125,3 +134,34 @@ def update_my_profile(
     db.commit()
     db.refresh(profile)
     return _to_profile_response(profile)
+
+
+@router.delete("/api/users/me", response_model=AccountDeleteResponse, tags=["Users"])
+def delete_my_account(
+    payload: AccountDeleteRequest,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db),
+) -> AccountDeleteResponse:
+    if not verify_password(payload.current_password, current_user.password_hash):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Current password is incorrect",
+        )
+
+    phone_number = current_user.phone_number
+    user_id = current_user.user_id
+
+    db.query(PhoneChangeVerification).filter(
+        PhoneChangeVerification.user_id == user_id,
+    ).delete(synchronize_session=False)
+    db.query(OTPVerification).filter(
+        OTPVerification.phone_number == phone_number,
+    ).delete(synchronize_session=False)
+    db.query(PasswordResetVerification).filter(
+        PasswordResetVerification.phone_number == phone_number,
+    ).delete(synchronize_session=False)
+
+    db.delete(current_user)
+    db.commit()
+
+    return AccountDeleteResponse(message="Account deleted successfully")

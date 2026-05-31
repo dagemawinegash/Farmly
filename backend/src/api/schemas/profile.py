@@ -78,3 +78,11 @@ class ProfileResponse(BaseModel):
     created_at: datetime
     updated_at: datetime
 
+
+class AccountDeleteRequest(BaseModel):
+    current_password: str = Field(min_length=8, max_length=72)
+
+
+class AccountDeleteResponse(BaseModel):
+    status: str = "success"
+    message: str

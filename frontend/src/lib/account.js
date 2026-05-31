@@ -13,4 +13,9 @@ export const accountApi = {
       new_phone_number,
       otp_code,
     }),
+
+  deleteAccount: async ({ current_password }) =>
+    api.delete("/api/users/me", {
+      data: { current_password },
+    }),
 };

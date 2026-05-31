@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import {
+  AlertTriangle,
   ArrowLeft,
   CheckCircle,
   KeyRound,
@@ -91,6 +92,11 @@ export default function SettingsPage() {
   const [phoneLoading, setPhoneLoading] = useState(false);
   const [phoneError, setPhoneError] = useState("");
   const [phoneSuccess, setPhoneSuccess] = useState("");
+  const [deleteAccount, setDeleteAccount] = useState({
+    current_password: "",
+  });
+  const [deleteLoading, setDeleteLoading] = useState(false);
+  const [deleteError, setDeleteError] = useState("");
 
   useEffect(() => {
     if (!isHydrated) return;
@@ -225,6 +231,26 @@ export default function SettingsPage() {
   function handleSignOut() {
     clearToken();
     navigate("/auth-options", { replace: true });
+  }
+
+  async function handleDeleteAccount() {
+    if (!confirm("This will permanently delete your Farmly account and all related data. Continue?")) {
+      return;
+    }
+
+    setDeleteLoading(true);
+    setDeleteError("");
+    try {
+      await accountApi.deleteAccount({
+        current_password: deleteAccount.current_password,
+      });
+      clearToken();
+      navigate("/", { replace: true });
+    } catch (error) {
+      setDeleteError(extractErrorMessage(error, "Could not delete account."));
+    } finally {
+      setDeleteLoading(false);
+    }
   }
 
   if (!isHydrated || loading) {
@@ -467,6 +493,51 @@ export default function SettingsPage() {
                   </Button>
                 </div>
               )}
+            </CardContent>
+          </Card>
+
+          <Card className="border-red-200 bg-red-50/50">
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2 text-red-700">
+                <AlertTriangle className="h-5 w-5" />
+                Danger Zone
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <p className="text-sm leading-6 text-red-700">
+                Delete your Farmly account permanently. This removes your profile, chats, messages, alerts,
+                and account access. This action cannot be undone.
+              </p>
+
+              <div>
+                <Label htmlFor="delete_current_password">Current Password</Label>
+                <Input
+                  id="delete_current_password"
+                  type="password"
+                  value={deleteAccount.current_password}
+                  onChange={(event) =>
+                    setDeleteAccount((previous) => ({
+                      ...previous,
+                      current_password: event.target.value,
+                    }))
+                  }
+                />
+              </div>
+
+              <StatusMessage type="error">{deleteError}</StatusMessage>
+
+              <Button
+                variant="outline"
+                onClick={handleDeleteAccount}
+                disabled={
+                  deleteLoading ||
+                  deleteAccount.current_password.length < 8
+                }
+                className="w-full gap-2 border-red-300 bg-white text-red-700 hover:bg-red-100"
+              >
+                {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
+                Delete account
+              </Button>
             </CardContent>
           </Card>
         </aside>
