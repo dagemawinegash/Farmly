@@ -20,7 +20,7 @@ from src.db.models.user import User, UserProfile
 from src.db.session import get_db
 from src.integrations.voice.hasab_client import translate_text_with_hasab
 from src.integrations.voice.google_stt import transcribe_audio
-from src.services.chat_orchestrator import run_chat_orchestrator
+from src.agent.orchestrator import run_farmly_agent
 from src.services.language import language_name, language_to_bcp47, normalize_app_language
 
 
@@ -254,7 +254,7 @@ def send_message(
                 detail=f"Amharic-to-English translation failed: {exc}",
             ) from exc
 
-    chosen_route, assistant_text_english = run_chat_orchestrator(
+    chosen_route, assistant_text_english = run_farmly_agent(
         db=db,
         session_id=session.session_id,
         profile=profile,

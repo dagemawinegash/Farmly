@@ -8,7 +8,6 @@ import { SUPPORTED_LANGUAGES } from "@/contexts/LanguageContext";
 const COPY = {
   en: {
     title: "Farmly Assistant",
-    devMode: "Dev Mode",
     responseLanguage: "Response language",
     welcomeTitle: "Welcome to Farmly",
     welcomeSubtitle: "Your personal agricultural assistant. Ask me anything or choose an option below.",
@@ -21,7 +20,6 @@ const COPY = {
   },
   am: {
     title: "Farmly ረዳት",
-    devMode: "Dev Mode",
     responseLanguage: "የመልስ ቋንቋ",
     welcomeTitle: "ወደ Farmly እንኳን በደህና መጡ",
     welcomeSubtitle: "የግብርና ጥያቄዎን በጽሑፍ፣ በድምጽ ወይም በምስል ይጠይቁ።",
@@ -39,8 +37,6 @@ export function ChatArea({
   onSendMessage, 
   isLoading, 
   onOpenSidebar,
-  isDevMode,
-  setIsDevMode,
   onSpeakMessage,
   speakingMessageId,
   language = "en",
@@ -84,16 +80,6 @@ export function ChatArea({
               ))}
             </select>
           </div>
-          <label htmlFor="dev-mode" className="hidden sm:inline-block cursor-pointer">
-            {copy.devMode}
-          </label>
-          <input 
-            type="checkbox" 
-            id="dev-mode" 
-            checked={isDevMode} 
-            onChange={(e) => setIsDevMode(e.target.checked)}
-            className="accent-primary h-4 w-4 cursor-pointer"
-          />
         </div>
       </header>
 
@@ -130,7 +116,6 @@ export function ChatArea({
               <MessageBubble
                 key={msg.message_id}
                 message={msg}
-                isDevMode={isDevMode}
                 onSpeak={onSpeakMessage}
                 isSpeaking={speakingMessageId === msg.message_id}
               />

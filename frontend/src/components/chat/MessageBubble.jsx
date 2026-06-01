@@ -11,13 +11,11 @@ const COPY = {
     uploadedCrop: "Uploaded crop",
     stopResponse: "Stop response",
     playResponse: "Play response",
-    route: "route",
   },
   am: {
     uploadedCrop: "የተጫነ የሰብል ምስል",
     stopResponse: "መልሱን አቁም",
     playResponse: "መልሱን አጫውት",
-    route: "route",
   },
 };
 
@@ -25,7 +23,7 @@ function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
-export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
+export function MessageBubble({ message, onSpeak, isSpeaking }) {
   const { language } = useLanguage();
   const copy = COPY[language] || COPY.en;
   const isUser = message.sender === "user";
@@ -107,12 +105,6 @@ export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
               </button>
             )}
           </div>
-
-          {isDevMode && !isUser && message.chosen_route && (
-            <div className="mt-1 bg-black/80 text-green-400 text-[10px] font-mono px-2 py-1 rounded w-fit border border-green-500/30 shadow-inner">
-              <span className="opacity-70">{copy.route}:</span> {message.chosen_route}
-            </div>
-          )}
         </div>
 
       </div>
