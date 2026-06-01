@@ -15,7 +15,8 @@ from src.integrations.weather.open_meteo import get_current_and_forecast, get_we
 
 settings = get_settings()
 
-SORGHUM_KEYWORDS = ("sorghum", "sorghum bicolor", "great millet", "jowar")
+SORGHUM_SCIENTIFIC_NAMES = ("sorghum bicolor",)
+SORGHUM_COMMON_NAMES = ("sorghum", "great millet", "jowar", "milo", "johnsongrass", "johnson grass")
 
 SUPPORTED_CROP_KEYWORDS = (
     ("apple", "malus domestica"),
@@ -184,36 +185,79 @@ def _candidate_text(candidate: dict | None) -> str:
     return " ".join(str(value).lower() for value in values if value)
 
 
+def _matches_keyword(text: str, keyword: str) -> bool:
+    return bool(re.search(rf"(?<![a-z]){re.escape(keyword)}(?![a-z])", text))
+
+
 def _candidate_matches(candidate: dict | None, keywords: tuple[str, ...]) -> bool:
     text = _candidate_text(candidate)
+    return any(_matches_keyword(text, keyword) for keyword in keywords)
+
+
+def _candidate_label_values(candidate: dict | None) -> list[str]:
+    if not candidate:
+        return []
+    values = [
+        candidate.get("name"),
+        *(candidate.get("common_names") or []),
+    ]
+    return [str(value).strip().lower() for value in values if value and str(value).strip()]
+
+
+def _is_sorghum_candidate(candidate: dict | None) -> bool:
+    if not candidate:
+        return False
+
+    scientific_name = str(candidate.get("scientific_name") or "").strip().lower()
+    if _matches_keyword(scientific_name, "sorghum") or any(
+        _matches_keyword(scientific_name, name) for name in SORGHUM_SCIENTIFIC_NAMES
+    ):
+        return True
+
     return any(
-        re.search(rf"(?<![a-z]){re.escape(keyword)}(?![a-z])", text)
-        for keyword in keywords
+        _matches_keyword(label, name)
+        for label in _candidate_label_values(candidate)
+        for name in SORGHUM_COMMON_NAMES
     )
 
 
 def _find_sorghum_candidate(crops: list[dict]) -> dict | None:
+    top_crop = crops[0] if crops else None
+    if _is_sorghum_candidate(top_crop):
+        return top_crop
+
     for crop in crops[:5]:
         if (
             _candidate_probability(crop) >= settings.plant_id_sorghum_threshold
-            and _candidate_matches(crop, SORGHUM_KEYWORDS)
+            and _is_sorghum_candidate(crop)
         ):
             return crop
     return None
 
 
-def _is_supported_crop(candidate: dict | None) -> bool:
-    if _candidate_probability(candidate) < settings.plant_id_supported_crop_threshold:
-        return False
+def _matches_supported_crop(candidate: dict | None) -> bool:
     return any(_candidate_matches(candidate, keywords) for keywords in SUPPORTED_CROP_KEYWORDS)
+
+
+def _find_supported_crop(crops: list[dict]) -> dict | None:
+    top_crop = crops[0] if crops else None
+    if _matches_supported_crop(top_crop):
+        return top_crop
+
+    for crop in crops[:5]:
+        if (
+            _candidate_probability(crop) >= settings.plant_id_supported_crop_threshold
+            and _matches_supported_crop(crop)
+        ):
+            return crop
+    return None
 
 
 def _unsupported_crop_advice(top_crop: dict | None) -> str:
     crop_name = (top_crop or {}).get("name") or (top_crop or {}).get("scientific_name") or "this plant"
     return (
-        f"Farmly identified {crop_name}, but crop-health diagnosis is currently available only for "
-        "sorghum and crops supported by Kindwise Crop.health. Please upload a clear sorghum image, "
-        "or use another supported crop image for disease diagnosis."
+        f"Farmly identified {crop_name}, but disease diagnosis is not available for that crop yet. "
+        "Please upload a clear sorghum image or another supported crop image for disease diagnosis."
     )
 
 
@@ -486,7 +530,8 @@ def run_diagnosis(
             recent_messages,
         )
 
-    if not _is_supported_crop(plant_top_crop):
+    supported_crop = _find_supported_crop(plant_crops)
+    if not supported_crop:
         return DiagnosisResponse(
             is_plant=True,
             top_crop=plant_top_crop,

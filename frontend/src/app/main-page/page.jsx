@@ -28,6 +28,7 @@ export default function MainPage() {
   const audioElementRef = useRef(null);
   const audioUrlRef = useRef(null);
   const audioRequestIdRef = useRef(0);
+  const imagePreviewUrlsRef = useRef(new Set());
 
   useEffect(() => {
     return () => {
@@ -35,6 +36,8 @@ export default function MainPage() {
       if (audioUrlRef.current) {
         URL.revokeObjectURL(audioUrlRef.current);
       }
+      imagePreviewUrlsRef.current.forEach((url) => URL.revokeObjectURL(url));
+      imagePreviewUrlsRef.current.clear();
     };
   }, []);
 
@@ -65,10 +68,14 @@ export default function MainPage() {
     fetchSessions();
   }, [checkingOnboarding]);
 
-  const fetchSessions = async () => {
+  const fetchSessions = async ({ syncMessages = true } = {}) => {
     try {
       const { data } = await chatApi.getSessions();
       setSessions(data);
+
+      if (!syncMessages) {
+        return;
+      }
 
       const saved = localStorage.getItem("farmly_active_session_id");
       const savedExists = saved && data.some((s) => s.session_id === saved);
@@ -196,9 +203,16 @@ export default function MainPage() {
     }
   };
 
-  const addTempUserMessage = (sessionId, content) => {
-    const trimmed = content?.trim();
-    if (!trimmed) return null;
+  const createImagePreviewUrl = (imageFile) => {
+    if (!imageFile) return "";
+    const url = URL.createObjectURL(imageFile);
+    imagePreviewUrlsRef.current.add(url);
+    return url;
+  };
+
+  const addTempUserMessage = (sessionId, content, extra = {}) => {
+    const trimmed = content?.trim() || "";
+    if (!trimmed && !extra.image_preview_url) return null;
     const messageId = `temp-${Date.now()}`;
 
     setMessages((prev) => [
@@ -210,6 +224,7 @@ export default function MainPage() {
         content: trimmed,
         sequence_no: prev.length + 1,
         created_at: new Date().toISOString(),
+        ...extra,
       },
     ]);
     return messageId;
@@ -226,6 +241,7 @@ export default function MainPage() {
 
   const handleSendMessage = async (text, image, audio) => {
     let tempMessageId = null;
+    const imagePreviewUrl = createImagePreviewUrl(image);
     try {
       setIsLoading(true);
       let outgoingText = text?.trim() || "";
@@ -250,7 +266,8 @@ export default function MainPage() {
       if (audio) {
         tempMessageId = addTempUserMessage(
           sessionId,
-          language === "am" ? "ድምጽ በጽሑፍ በመቀየር ላይ..." : "Transcribing voice..."
+          language === "am" ? "ድምጽ በጽሑፍ በመቀየር ላይ..." : "Transcribing voice...",
+          imagePreviewUrl ? { image_preview_url: imagePreviewUrl } : {}
         );
         const { data } = await voiceApi.transcribe(audio, voiceLanguageCode);
         outgoingText = data?.transcript?.trim() || "";
@@ -258,12 +275,21 @@ export default function MainPage() {
           throw new Error("Voice transcription returned no text.");
         }
         updateTempUserMessage(tempMessageId, outgoingText);
+      } else if (image) {
+        tempMessageId = addTempUserMessage(
+          sessionId,
+          outgoingText || "[image uploaded for diagnosis]",
+          { image_preview_url: imagePreviewUrl }
+        );
       } else if (outgoingText && !image) {
         tempMessageId = addTempUserMessage(sessionId, outgoingText);
       }
 
       const res = await chatApi.sendMessage(sessionId, outgoingText, image, null, voiceLanguageCode);
       const { user_message, assistant_message, chosen_route } = res.data;
+      const userMessage = imagePreviewUrl
+        ? { ...user_message, image_preview_url: imagePreviewUrl }
+        : user_message;
 
       if (chosen_route) {
         assistant_message.chosen_route = chosen_route;
@@ -271,14 +297,14 @@ export default function MainPage() {
 
       setMessages((prev) => {
         const filtered = prev.filter((m) => !String(m.message_id).startsWith("temp-"));
-        return [...filtered, user_message, assistant_message];
+        return [...filtered, userMessage, assistant_message];
       });
 
-      if (wasNewSession && user_message?.content) {
-        await autoTitleFromFirstMessage(sessionId, user_message.content);
+      if (wasNewSession && userMessage?.content) {
+        await autoTitleFromFirstMessage(sessionId, userMessage.content);
       }
 
-      await fetchSessions();
+      await fetchSessions({ syncMessages: false });
       if (audio && assistant_message?.content) {
         playAssistantAudio(assistant_message);
       }

@@ -1,3 +1,4 @@
+import logging
 from typing import Any, TypedDict
 
 from langgraph.graph import END, StateGraph
@@ -12,6 +13,8 @@ from src.services.advisory_service import (
     run_fertilizer_recommendation,
     run_weather_recommendation,
 )
+
+logger = logging.getLogger(__name__)
 
 
 class OrchestratorState(TypedDict):
@@ -143,6 +146,14 @@ def run_chat_orchestrator(
                     profile_context=profile_context,
                 )
         except Exception:
+            logger.exception("Chat route failed", extra={"route": route})
+            if route == "disease_diagnosis":
+                s["result_text"] = (
+                    "I could not diagnose a crop disease from this image.\n"
+                    "Please upload a clear photo of the crop leaf, stem, or head. "
+                    "If the image is not a plant, Farmly cannot run disease diagnosis on it."
+                )
+                return s
             fallback = s["message"].strip()[:120]
             s["result_text"] = (
                 "I received your request and prepared a basic response.\n"

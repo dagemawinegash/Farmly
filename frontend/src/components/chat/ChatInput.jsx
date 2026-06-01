@@ -3,6 +3,8 @@ import { Loader2, Mic, Send, Square, Image as ImageIcon, X } from "lucide-react"
 import { Button } from "@/components/ui/button";
 
 const MAX_RECORDING_MS = 45000;
+const MAX_IMAGE_PIXELS = 25000000;
+const MAX_IMAGE_MEGAPIXELS = Math.floor(MAX_IMAGE_PIXELS / 1000000);
 const AUDIO_MIME_TYPES = [
   "audio/webm;codecs=opus",
   "audio/webm",
@@ -23,6 +25,9 @@ const COPY = {
     sendMessage: "Send message",
     recording: "Recording...",
     processing: "Processing audio...",
+    imageTypeError: "Please choose an image file.",
+    imageReadFailed: "Could not read this image. Please choose another file.",
+    imageTooLarge: "This image is {size}, over the {limit} diagnosis limit. Resize it or choose a smaller photo.",
   },
   am: {
     unsupported: "ይህ አሳሽ የድምጽ መቅዳትን አይደግፍም።",
@@ -36,6 +41,9 @@ const COPY = {
     sendMessage: "መልዕክት ላክ",
     recording: "በመቅዳት ላይ...",
     processing: "ድምጽ በሂደት ላይ...",
+    imageTypeError: "እባክዎ የምስል ፋይል ይምረጡ።",
+    imageReadFailed: "ይህን ምስል ማንበብ አልተቻለም። እባክዎ ሌላ ፋይል ይምረጡ።",
+    imageTooLarge: "ይህ ምስል {size} ነው፣ ከ{limit} የምርመራ ገደብ በላይ ነው። ያሳንሱት ወይም ትንሽ ፎቶ ይምረጡ።",
   },
 };
 
@@ -103,12 +111,43 @@ async function convertRecordedAudioToWav(blob) {
   }
 }
 
+async function getImageDimensions(file) {
+  if (typeof window !== "undefined" && "createImageBitmap" in window) {
+    const bitmap = await createImageBitmap(file);
+    const dimensions = { width: bitmap.width, height: bitmap.height };
+    bitmap.close?.();
+    return dimensions;
+  }
+
+  return new Promise((resolve, reject) => {
+    const url = URL.createObjectURL(file);
+    const img = document.createElement("img");
+
+    img.onload = () => {
+      URL.revokeObjectURL(url);
+      resolve({ width: img.naturalWidth, height: img.naturalHeight });
+    };
+    img.onerror = () => {
+      URL.revokeObjectURL(url);
+      reject(new Error("Image dimensions could not be read."));
+    };
+    img.src = url;
+  });
+}
+
+function formatImageTooLargeMessage(copy, width, height) {
+  return copy.imageTooLarge
+    .replace("{size}", `${width}x${height}`)
+    .replace("{limit}", `${MAX_IMAGE_MEGAPIXELS}MP`);
+}
+
 export function ChatInput({ onSend, disabled, language = "en" }) {
   const [text, setText] = useState("");
   const [image, setImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
   const [recordingState, setRecordingState] = useState("idle");
   const [recordingError, setRecordingError] = useState("");
+  const [inputError, setInputError] = useState("");
   const fileInputRef = useRef(null);
   const textareaRef = useRef(null);
   const mediaRecorderRef = useRef(null);
@@ -137,15 +176,38 @@ export function ChatInput({ onSend, disabled, language = "en" }) {
     }
   };
 
-  const handleImageChange = (e) => {
+  const handleImageChange = async (e) => {
     const file = e.target.files?.[0];
-    if (file && file.type.startsWith("image/")) {
-      setImage(file);
-      setPreviewUrl(URL.createObjectURL(file));
-    }
-    // reset input
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
+    setInputError("");
+
+    try {
+      if (file && !file.type.startsWith("image/")) {
+        removeImage();
+        setInputError(copy.imageTypeError);
+      } else if (file) {
+        const { width, height } = await getImageDimensions(file);
+        if (width * height > MAX_IMAGE_PIXELS) {
+          removeImage();
+          setInputError(formatImageTooLargeMessage(copy, width, height));
+          return;
+        }
+
+        if (previewUrl) {
+          URL.revokeObjectURL(previewUrl);
+        }
+        setInputError("");
+        setRecordingError("");
+        setPreviewUrl(URL.createObjectURL(file));
+        setImage(file);
+      }
+    } catch (err) {
+      console.error("Failed to read selected image", err);
+      removeImage();
+      setInputError(copy.imageReadFailed);
+    } finally {
+      if (fileInputRef.current) {
+        fileInputRef.current.value = "";
+      }
     }
   };
 
@@ -168,6 +230,7 @@ export function ChatInput({ onSend, disabled, language = "en" }) {
   const startRecording = async () => {
     if (disabled || recordingState !== "idle") return;
     setRecordingError("");
+    setInputError("");
 
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
       setRecordingError(copy.unsupported);
@@ -235,6 +298,7 @@ export function ChatInput({ onSend, disabled, language = "en" }) {
   const handleSubmit = (e) => {
     e?.preventDefault();
     if ((!text.trim() && !image) || disabled || recordingState !== "idle") return;
+    setInputError("");
     
     onSend(text.trim(), image, null);
     setText("");
@@ -344,11 +408,12 @@ export function ChatInput({ onSend, disabled, language = "en" }) {
           </Button>
         </div>
 
-        {(isRecording || isProcessingAudio || recordingError) && (
+        {(isRecording || isProcessingAudio || recordingError || inputError) && (
           <div className="px-2 text-xs">
             {isRecording && <span className="text-destructive">{copy.recording}</span>}
             {isProcessingAudio && <span className="text-muted-foreground">{copy.processing}</span>}
             {recordingError && <span className="text-destructive">{recordingError}</span>}
+            {inputError && <span className="text-destructive">{inputError}</span>}
           </div>
         )}
       </form>

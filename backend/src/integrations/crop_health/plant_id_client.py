@@ -17,6 +17,40 @@ def _as_float(value: Any) -> float | None:
         return None
 
 
+def _as_bool(value: Any) -> bool | None:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        normalized = value.strip().lower()
+        if normalized in {"true", "yes", "1"}:
+            return True
+        if normalized in {"false", "no", "0"}:
+            return False
+    return None
+
+
+def _normalize_is_plant(value: Any) -> tuple[bool, float | None]:
+    if isinstance(value, dict):
+        probability = _as_float(value.get("probability"))
+        binary = _as_bool(value.get("binary"))
+        if binary is None and probability is not None:
+            threshold = _as_float(value.get("threshold")) or 0.5
+            binary = probability >= threshold
+        return bool(binary), probability
+
+    binary = _as_bool(value)
+    if binary is not None:
+        return binary, 1.0 if binary else 0.0
+
+    probability = _as_float(value)
+    if probability is not None:
+        return probability >= 0.5, probability
+
+    return False, None
+
+
 def _normalize_common_names(value: Any) -> list[str]:
     if isinstance(value, str):
         return [value] if value else []
@@ -27,7 +61,7 @@ def _normalize_common_names(value: Any) -> list[str]:
 
 def _simplify_plant_id_response(data: dict) -> dict:
     result = data.get("result") or {}
-    is_plant_info = result.get("is_plant") or {}
+    is_plant, is_plant_probability = _normalize_is_plant(result.get("is_plant"))
     classification = result.get("classification") or {}
 
     crop_suggestions: list[dict] = []
@@ -50,8 +84,8 @@ def _simplify_plant_id_response(data: dict) -> dict:
     crop_suggestions.sort(key=lambda item: item.get("probability") or 0, reverse=True)
 
     return {
-        "is_plant": bool(is_plant_info.get("binary")),
-        "is_plant_probability": _as_float(is_plant_info.get("probability")),
+        "is_plant": is_plant,
+        "is_plant_probability": is_plant_probability,
         "crops": crop_suggestions,
     }
 
