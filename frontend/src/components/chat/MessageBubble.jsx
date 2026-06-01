@@ -4,12 +4,18 @@ import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Bot, Square, User, Volume2 } from "lucide-react";
 
+const IMAGE_UPLOAD_PLACEHOLDER = "[image uploaded for diagnosis]";
+
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
 export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
   const isUser = message.sender === "user";
+  const imageUrl = message.image_preview_url || message.imagePreviewUrl || "";
+  const showUserText = Boolean(
+    message.content && (!imageUrl || message.content !== IMAGE_UPLOAD_PLACEHOLDER)
+  );
 
   return (
     <div className={cn("flex w-full mb-6", isUser ? "justify-end" : "justify-start")}>
@@ -29,13 +35,27 @@ export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
           isUser ? "items-end" : "items-start"
         )}>
           <div className={cn(
-            "rounded-2xl px-4 py-3 text-sm",
+            "rounded-2xl text-sm",
+            isUser && imageUrl ? "p-1" : "px-4 py-3",
             isUser 
               ? "bg-primary text-primary-foreground rounded-tr-sm" 
               : "bg-card text-foreground rounded-tl-sm border border-border shadow-sm"
           )}>
             {isUser ? (
-              <p className="whitespace-pre-wrap">{message.content}</p>
+              <div className="flex max-w-full flex-col gap-2">
+                {imageUrl && (
+                  <img
+                    src={imageUrl}
+                    alt="Uploaded crop"
+                    className="max-h-64 max-w-full rounded-xl object-cover"
+                  />
+                )}
+                {showUserText && (
+                  <p className={cn("whitespace-pre-wrap", imageUrl && "px-2 pb-1")}>
+                    {message.content}
+                  </p>
+                )}
+              </div>
             ) : (
               <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-headings:text-foreground">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
