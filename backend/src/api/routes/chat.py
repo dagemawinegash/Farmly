@@ -190,6 +190,7 @@ def send_message(
         )
 
     image_bytes: bytes | None = None
+    image_mime_type: str | None = None
     if image is not None:
         content_type = (image.content_type or "").lower()
         if not content_type.startswith("image/"):
@@ -203,6 +204,7 @@ def send_message(
                 status_code=status.HTTP_400_BAD_REQUEST,
                 detail="Uploaded image is empty.",
             )
+        image_mime_type = content_type
 
     profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
     effective_language = language_code or (profile.preferred_language if profile else None)
@@ -258,6 +260,7 @@ def send_message(
         profile=profile,
         message=user_content_english or user_content,
         image_bytes=image_bytes,
+        image_mime_type=image_mime_type,
         language_code=bcp47_language,
     )
     assistant_text = assistant_text_english

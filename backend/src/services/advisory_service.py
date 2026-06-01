@@ -5,15 +5,17 @@ from src.api.schemas.diagnosis import DiagnosisResponse
 from src.config.settings import get_settings
 from src.db.models.user import UserProfile
 from src.integrations.crop_health.kindwise_client import diagnose_with_kindwise
-from src.integrations.crop_health.plant_id_client import identify_plant
 from src.integrations.crop_health.sorghum_labels import display_sorghum_class
 from src.integrations.crop_health.sorghum_model_client import predict_sorghum_disease
-from src.integrations.llm.gemini_adapter import generate_reply
+from src.integrations.llm.gemini_adapter import classify_crop_image, generate_reply
 from src.integrations.soil.isda_client import get_soil_summary
 from src.integrations.weather.open_meteo import get_current_and_forecast, get_weather_summary
 
 
 settings = get_settings()
+
+GEMINI_TRIAGE_MIN_CONFIDENCE = 0.35
+GEMINI_TRIAGE_SUPPORTED_CROP_CONFIDENCE = 0.40
 
 SORGHUM_SCIENTIFIC_NAMES = ("sorghum bicolor",)
 SORGHUM_COMMON_NAMES = ("sorghum", "great millet", "jowar", "milo", "johnsongrass", "johnson grass")
@@ -165,6 +167,13 @@ def _fallback_diagnosis_advice(is_plant: bool, top_disease_name: str | None) -> 
     )
 
 
+def _uncertain_crop_advice() -> str:
+    return (
+        "Farmly can see that this may be a plant, but the crop is not clear enough to route diagnosis safely. "
+        "Please upload a closer, well-lit image of the crop leaf, stem, or head."
+    )
+
+
 def _candidate_probability(candidate: dict | None) -> float:
     if not candidate:
         return 0.0
@@ -172,6 +181,20 @@ def _candidate_probability(candidate: dict | None) -> float:
         return float(candidate.get("probability") or 0)
     except (TypeError, ValueError):
         return 0.0
+
+
+def _confidence_value(value) -> float:
+    try:
+        return max(0.0, min(1.0, float(value)))
+    except (TypeError, ValueError):
+        normalized = str(value or "").strip().lower()
+        if normalized == "high":
+            return 0.85
+        if normalized == "medium":
+            return 0.6
+        if normalized == "low":
+            return 0.3
+    return 0.0
 
 
 def _candidate_text(candidate: dict | None) -> str:
@@ -228,7 +251,7 @@ def _find_sorghum_candidate(crops: list[dict]) -> dict | None:
 
     for crop in crops[:5]:
         if (
-            _candidate_probability(crop) >= settings.plant_id_sorghum_threshold
+            _candidate_probability(crop) >= GEMINI_TRIAGE_MIN_CONFIDENCE
             and _is_sorghum_candidate(crop)
         ):
             return crop
@@ -246,11 +269,57 @@ def _find_supported_crop(crops: list[dict]) -> dict | None:
 
     for crop in crops[:5]:
         if (
-            _candidate_probability(crop) >= settings.plant_id_supported_crop_threshold
+            _candidate_probability(crop) >= GEMINI_TRIAGE_SUPPORTED_CROP_CONFIDENCE
             and _matches_supported_crop(crop)
         ):
             return crop
     return None
+
+
+def _supported_crop_names_for_prompt() -> list[str]:
+    names: set[str] = set()
+    for keywords in SUPPORTED_CROP_KEYWORDS:
+        for keyword in keywords:
+            names.add(keyword)
+    return sorted(names)
+
+
+def _bool_value(value) -> bool:
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return bool(value)
+    if isinstance(value, str):
+        return value.strip().lower() in {"true", "yes", "1"}
+    return False
+
+
+def _triage_crop_candidate(triage: dict) -> dict | None:
+    crop_name = str(triage.get("crop_name") or "").strip()
+    scientific_name = str(triage.get("scientific_name") or "").strip()
+    supported_match = str(triage.get("supported_crop_match") or "").strip()
+    common_names_raw = triage.get("common_names")
+
+    common_names: list[str] = []
+    if isinstance(common_names_raw, list):
+        common_names = [str(item).strip() for item in common_names_raw if str(item).strip()]
+    elif isinstance(common_names_raw, str) and common_names_raw.strip():
+        common_names = [common_names_raw.strip()]
+
+    if supported_match and supported_match.lower() not in {item.lower() for item in common_names}:
+        common_names.append(supported_match)
+
+    if not crop_name and not scientific_name and not common_names:
+        return None
+
+    display_name = crop_name or (common_names[0] if common_names else scientific_name)
+    return {
+        "name": display_name,
+        "scientific_name": scientific_name or None,
+        "common_names": common_names,
+        "probability": _confidence_value(triage.get("confidence")),
+        "similar_images": [],
+    }
 
 
 def _unsupported_crop_advice(top_crop: dict | None) -> str:
@@ -496,17 +565,24 @@ def run_weather_recommendation(
 def run_diagnosis(
     profile: UserProfile,
     image_bytes: bytes,
+    image_mime_type: str = "image/jpeg",
     recent_messages: list[dict[str, str]] | None = None,
 ) -> DiagnosisResponse:
     coords = parse_lat_lon(profile.location)
     lat, lon = coords if coords else (9.03, 38.74)
-    plant_identification = identify_plant(image_bytes)
+    vision_triage = classify_crop_image(
+        image_bytes=image_bytes,
+        mime_type=image_mime_type or "image/jpeg",
+        supported_crops=_supported_crop_names_for_prompt(),
+    )
 
-    plant_crops = plant_identification.get("crops", [])
-    plant_top_crop = plant_crops[0] if plant_crops else None
-    is_plant = bool(plant_identification.get("is_plant", False))
+    plant_top_crop = _triage_crop_candidate(vision_triage)
+    plant_crops = [plant_top_crop] if plant_top_crop else []
+    is_plant = _bool_value(vision_triage.get("is_plant"))
+    decision = str(vision_triage.get("decision") or "").strip().lower()
+    crop_confidence = _confidence_value(vision_triage.get("confidence"))
 
-    if not is_plant:
+    if not is_plant or decision == "not_plant":
         return DiagnosisResponse(
             is_plant=False,
             top_crop=None,
@@ -515,12 +591,28 @@ def run_diagnosis(
             diseases=[],
             advice_text=_fallback_diagnosis_advice(False, None),
             used_fallback=False,
-            provider="plant_id_only",
+            provider="gemini_vision",
             confidence_status="not_plant",
             needs_retake=True,
         )
 
+    if decision == "uncertain" or not plant_top_crop or crop_confidence < GEMINI_TRIAGE_MIN_CONFIDENCE:
+        return DiagnosisResponse(
+            is_plant=True,
+            top_crop=plant_top_crop,
+            top_disease=None,
+            crops=plant_crops,
+            diseases=[],
+            advice_text=_uncertain_crop_advice(),
+            used_fallback=False,
+            provider="gemini_vision",
+            confidence_status="uncertain_crop",
+            needs_retake=True,
+        )
+
     sorghum_crop = _find_sorghum_candidate(plant_crops)
+    if _bool_value(vision_triage.get("is_sorghum")) and not sorghum_crop:
+        sorghum_crop = plant_top_crop
     if sorghum_crop:
         return _run_sorghum_diagnosis(
             profile,
@@ -531,6 +623,14 @@ def run_diagnosis(
         )
 
     supported_crop = _find_supported_crop(plant_crops)
+    if (
+        not supported_crop
+        and _bool_value(vision_triage.get("is_kindwise_supported"))
+        and plant_top_crop
+        and decision == "kindwise_crop_health"
+    ):
+        supported_crop = plant_top_crop
+
     if not supported_crop:
         return DiagnosisResponse(
             is_plant=True,
@@ -540,7 +640,7 @@ def run_diagnosis(
             diseases=[],
             advice_text=_unsupported_crop_advice(plant_top_crop),
             used_fallback=False,
-            provider="plant_id_only",
+            provider="gemini_vision",
             confidence_status="unsupported",
             needs_retake=False,
         )

@@ -30,6 +30,6 @@ def diagnose_crop_health(
         raise HTTPException(status_code=400, detail="Uploaded image is empty.")
 
     try:
-        return run_diagnosis(profile, image_bytes)
+        return run_diagnosis(profile, image_bytes, image_mime_type=content_type)
     except Exception as exc:
         raise HTTPException(status_code=502, detail=f"Diagnosis provider request failed: {exc}")

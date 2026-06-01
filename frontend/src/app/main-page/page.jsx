@@ -19,6 +19,8 @@ const COPY = {
     transcribingVoice: "Transcribing voice...",
     noTranscript: "Voice transcription returned no text.",
     transcriptionFailed: "Voice transcription failed. Please try again.",
+    imageDiagnosisFailed: "Image diagnosis failed. Please try again with a clear plant photo.",
+    sendFailed: "Message failed. Please try again.",
   },
   am: {
     voiceMessage: "የድምጽ መልዕክት",
@@ -26,6 +28,8 @@ const COPY = {
     transcribingVoice: "ድምጽ በጽሑፍ በመቀየር ላይ...",
     noTranscript: "የድምጽ መልዕክት ወደ ጽሑፍ አልተቀየረም።",
     transcriptionFailed: "የድምጽ መልዕክት ወደ ጽሑፍ መቀየር አልተሳካም። እባክዎ እንደገና ይሞክሩ።",
+    imageDiagnosisFailed: "የምስል ምርመራ አልተሳካም። እባክዎ ግልጽ የተክል ፎቶ በመጠቀም እንደገና ይሞክሩ።",
+    sendFailed: "መልዕክቱ አልተላከም። እባክዎ እንደገና ይሞክሩ።",
   },
 };
 
@@ -329,9 +333,14 @@ export default function MainPage() {
     } catch (err) {
       console.error("Failed to send message", err);
       if (tempMessageId) {
+        const failureMessage = audio
+          ? copy.transcriptionFailed
+          : image
+            ? copy.imageDiagnosisFailed
+            : copy.sendFailed;
         updateTempUserMessage(
           tempMessageId,
-          copy.transcriptionFailed
+          failureMessage
         );
       }
     } finally {

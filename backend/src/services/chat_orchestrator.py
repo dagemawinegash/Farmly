@@ -95,6 +95,7 @@ def run_chat_orchestrator(
     profile: UserProfile | None,
     message: str,
     image_bytes: bytes | None,
+    image_mime_type: str | None = None,
     language_code: str | None = None,
 ) -> tuple[str, str]:
     state: OrchestratorState = {
@@ -137,7 +138,12 @@ def run_chat_orchestrator(
                 elif not profile:
                     s["result_text"] = "Please complete onboarding profile first."
                 else:
-                    diagnosis = run_diagnosis(profile, image_bytes, recent_messages=recent_messages)
+                    diagnosis = run_diagnosis(
+                        profile,
+                        image_bytes,
+                        image_mime_type=image_mime_type or "image/jpeg",
+                        recent_messages=recent_messages,
+                    )
                     s["result_text"] = diagnosis.advice_text
             else:
                 s["result_text"] = generate_reply(

@@ -1,4 +1,6 @@
-﻿import { api } from "./api";
+import { api } from "./api";
+
+const CHAT_SEND_TIMEOUT_MS = 120000;
 
 export const chatApi = {
   getSessions: async (limit = 20, offset = 0) => {
@@ -49,6 +51,7 @@ export const chatApi = {
       headers: {
         "Content-Type": "multipart/form-data",
       },
+      timeout: CHAT_SEND_TIMEOUT_MS,
     });
   },
 };

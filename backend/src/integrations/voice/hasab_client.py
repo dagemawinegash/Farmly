@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
+import re
 from typing import Any
 from urllib.parse import urljoin
 
@@ -12,6 +14,7 @@ from src.services.language import is_amharic
 
 HASAB_TRANSLATION_TARGET_ENGLISH = "eng"
 HASAB_CHAT_TRANSLATION_MODEL = "hasab-1-lite"
+ETHIOPIC_CHAR_PATTERN = r"\u1200-\u137F"
 
 
 @dataclass(frozen=True)
@@ -48,17 +51,29 @@ def _response_json(response: httpx.Response, operation: str) -> dict[str, Any]:
         body = response.text.strip()
         if operation == "translation" and body:
             if body.startswith("data:"):
+                content_chunks: list[str] = []
                 for line in body.splitlines():
                     line = line.strip()
-                    if line.startswith("data:"):
-                        candidate = line.removeprefix("data:").strip()
-                        if candidate and candidate != "[DONE]":
-                            try:
-                                data = httpx.Response(200, content=candidate).json()
-                                if isinstance(data, dict):
-                                    return data
-                            except ValueError:
-                                return {"content": candidate}
+                    if not line.startswith("data:"):
+                        continue
+
+                    candidate = line.removeprefix("data:").strip()
+                    if not candidate or candidate == "[DONE]":
+                        continue
+
+                    try:
+                        parsed = json.loads(candidate)
+                    except ValueError:
+                        content_chunks.append(candidate)
+                        continue
+
+                    if isinstance(parsed, dict):
+                        chunk = _extract_chat_content(parsed, strip=False)
+                        if chunk:
+                            content_chunks.append(chunk)
+
+                if content_chunks:
+                    return {"content": "".join(content_chunks).strip()}
             return {"content": body}
         body_preview = body[:500] or "<empty response body>"
         raise RuntimeError(
@@ -119,10 +134,16 @@ def _extract_translation(data: dict[str, Any]) -> str | None:
     return None
 
 
-def _extract_chat_content(data: dict[str, Any]) -> str:
+def _extract_chat_content(data: dict[str, Any], *, strip: bool = True) -> str:
     message = data.get("message") if isinstance(data.get("message"), dict) else {}
+    choices = data.get("choices") if isinstance(data.get("choices"), list) else []
+    first_choice = choices[0] if choices and isinstance(choices[0], dict) else {}
+    choice_message = first_choice.get("message") if isinstance(first_choice.get("message"), dict) else {}
+    choice_delta = first_choice.get("delta") if isinstance(first_choice.get("delta"), dict) else {}
     candidates = [
         message.get("content"),
+        choice_message.get("content"),
+        choice_delta.get("content"),
         data.get("content"),
         data.get("text"),
         data.get("response"),
@@ -130,8 +151,16 @@ def _extract_chat_content(data: dict[str, Any]) -> str:
     ]
     for candidate in candidates:
         if isinstance(candidate, str) and candidate.strip():
-            return candidate.strip()
+            return candidate.strip() if strip else candidate
     return ""
+
+
+def _normalize_amharic_punctuation(text: str) -> str:
+    return re.sub(
+        rf"(?<=[{ETHIOPIC_CHAR_PATTERN}])\.(?=\s|$)",
+        "።",
+        text,
+    )
 
 
 def translate_text_with_hasab(
@@ -178,6 +207,8 @@ def translate_text_with_hasab(
     translation = _extract_chat_content(_response_json(response, "translation"))
     if not translation:
         raise RuntimeError("Hasab translation returned no text.")
+    if target_is_amharic:
+        translation = _normalize_amharic_punctuation(translation)
     return translation
 
 
