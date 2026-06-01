@@ -7,6 +7,15 @@ export const SUPPORTED_LANGUAGES = [
   { code: "am", tag: "ET", name: "Amharic" },
 ];
 
+export const LANGUAGE_TO_BCP47 = {
+  en: "en-US",
+  am: "am-ET",
+};
+
+export function getVoiceLanguageCode(language) {
+  return LANGUAGE_TO_BCP47[language] || LANGUAGE_TO_BCP47.en;
+}
+
 export function LanguageProvider({ children }) {
   const [language, setLanguageState] = useState(() => {
     const saved = localStorage.getItem("farmly_language");

@@ -10,6 +10,35 @@ const AUDIO_MIME_TYPES = [
   "audio/ogg",
 ];
 
+const COPY = {
+  en: {
+    unsupported: "Voice recording is not supported in this browser.",
+    recordingFailed: "Recording failed. Please try again.",
+    permissionNeeded: "Microphone permission is needed for voice messages.",
+    noAudio: "No audio was recorded.",
+    attachImage: "Attach image",
+    stopRecording: "Stop recording",
+    recordVoice: "Record voice message",
+    placeholder: "Ask Farmly for advice...",
+    sendMessage: "Send message",
+    recording: "Recording...",
+    processing: "Processing audio...",
+  },
+  am: {
+    unsupported: "ይህ አሳሽ የድምጽ መቅዳትን አይደግፍም።",
+    recordingFailed: "ድምጽ መቅዳት አልተሳካም። እባክዎ እንደገና ይሞክሩ።",
+    permissionNeeded: "የድምጽ መልዕክት ለመላክ የማይክሮፎን ፈቃድ ያስፈልጋል።",
+    noAudio: "ምንም ድምጽ አልተቀዳም።",
+    attachImage: "ምስል አያይዝ",
+    stopRecording: "መቅዳት አቁም",
+    recordVoice: "የድምጽ መልዕክት ቅዳ",
+    placeholder: "Farmlyን የግብርና ምክር ይጠይቁ...",
+    sendMessage: "መልዕክት ላክ",
+    recording: "በመቅዳት ላይ...",
+    processing: "ድምጽ በሂደት ላይ...",
+  },
+};
+
 function getSupportedAudioMimeType() {
   if (typeof window === "undefined" || !window.MediaRecorder) {
     return "";
@@ -17,7 +46,64 @@ function getSupportedAudioMimeType() {
   return AUDIO_MIME_TYPES.find((type) => window.MediaRecorder.isTypeSupported(type)) || "";
 }
 
-export function ChatInput({ onSend, disabled }) {
+function writeString(view, offset, value) {
+  for (let i = 0; i < value.length; i += 1) {
+    view.setUint8(offset + i, value.charCodeAt(i));
+  }
+}
+
+function audioBufferToWav(audioBuffer) {
+  const channels = audioBuffer.numberOfChannels;
+  const sampleRate = audioBuffer.sampleRate;
+  const length = audioBuffer.length;
+  const bytesPerSample = 2;
+  const blockAlign = channels * bytesPerSample;
+  const dataSize = length * blockAlign;
+  const buffer = new ArrayBuffer(44 + dataSize);
+  const view = new DataView(buffer);
+
+  writeString(view, 0, "RIFF");
+  view.setUint32(4, 36 + dataSize, true);
+  writeString(view, 8, "WAVE");
+  writeString(view, 12, "fmt ");
+  view.setUint32(16, 16, true);
+  view.setUint16(20, 1, true);
+  view.setUint16(22, channels, true);
+  view.setUint32(24, sampleRate, true);
+  view.setUint32(28, sampleRate * blockAlign, true);
+  view.setUint16(32, blockAlign, true);
+  view.setUint16(34, bytesPerSample * 8, true);
+  writeString(view, 36, "data");
+  view.setUint32(40, dataSize, true);
+
+  let offset = 44;
+  for (let i = 0; i < length; i += 1) {
+    for (let channel = 0; channel < channels; channel += 1) {
+      const sample = Math.max(-1, Math.min(1, audioBuffer.getChannelData(channel)[i]));
+      view.setInt16(offset, sample < 0 ? sample * 0x8000 : sample * 0x7fff, true);
+      offset += bytesPerSample;
+    }
+  }
+
+  return new Blob([buffer], { type: "audio/wav" });
+}
+
+async function convertRecordedAudioToWav(blob) {
+  const AudioContextClass = window.AudioContext || window.webkitAudioContext;
+  if (!AudioContextClass) {
+    return blob;
+  }
+  const audioContext = new AudioContextClass();
+  try {
+    const arrayBuffer = await blob.arrayBuffer();
+    const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+    return audioBufferToWav(audioBuffer);
+  } finally {
+    audioContext.close?.();
+  }
+}
+
+export function ChatInput({ onSend, disabled, language = "en" }) {
   const [text, setText] = useState("");
   const [image, setImage] = useState(null);
   const [previewUrl, setPreviewUrl] = useState(null);
@@ -28,6 +114,7 @@ export function ChatInput({ onSend, disabled }) {
   const mediaRecorderRef = useRef(null);
   const audioChunksRef = useRef([]);
   const recordingTimeoutRef = useRef(null);
+  const copy = COPY[language] || COPY.en;
 
   useEffect(() => {
     return () => {
@@ -83,7 +170,7 @@ export function ChatInput({ onSend, disabled }) {
     setRecordingError("");
 
     if (!navigator.mediaDevices?.getUserMedia || !window.MediaRecorder) {
-      setRecordingError("Voice recording is not supported in this browser.");
+      setRecordingError(copy.unsupported);
       return;
     }
 
@@ -102,13 +189,13 @@ export function ChatInput({ onSend, disabled }) {
       };
 
       recorder.onerror = () => {
-        setRecordingError("Recording failed. Please try again.");
+        setRecordingError(copy.recordingFailed);
         setRecordingState("idle");
         clearTimeout(recordingTimeoutRef.current);
         stream.getTracks().forEach((track) => track.stop());
       };
 
-      recorder.onstop = () => {
+      recorder.onstop = async () => {
         clearTimeout(recordingTimeoutRef.current);
         stream.getTracks().forEach((track) => track.stop());
         const audioType = recorder.mimeType || mimeType || "audio/webm";
@@ -117,15 +204,22 @@ export function ChatInput({ onSend, disabled }) {
         mediaRecorderRef.current = null;
 
         if (!audioBlob.size) {
-          setRecordingError("No audio was recorded.");
+          setRecordingError(copy.noAudio);
           setRecordingState("idle");
           return;
         }
 
-        onSend("", image, audioBlob);
-        setText("");
-        removeImage();
-        setRecordingState("idle");
+        try {
+          const wavBlob = await convertRecordedAudioToWav(audioBlob);
+          onSend("", image, wavBlob);
+          setText("");
+          removeImage();
+        } catch (err) {
+          console.error("Failed to prepare recorded audio", err);
+          setRecordingError(copy.recordingFailed);
+        } finally {
+          setRecordingState("idle");
+        }
       };
 
       recorder.start();
@@ -133,7 +227,7 @@ export function ChatInput({ onSend, disabled }) {
       recordingTimeoutRef.current = window.setTimeout(stopRecording, MAX_RECORDING_MS);
     } catch (err) {
       console.error("Failed to start recording", err);
-      setRecordingError("Microphone permission is needed for voice messages.");
+      setRecordingError(copy.permissionNeeded);
       setRecordingState("idle");
     }
   };
@@ -198,8 +292,8 @@ export function ChatInput({ onSend, disabled }) {
             className="shrink-0 rounded-full text-muted-foreground hover:text-foreground"
             onClick={() => fileInputRef.current?.click()}
             disabled={disabled || isRecording || isProcessingAudio}
-            title="Attach image"
-            aria-label="Attach image"
+            title={copy.attachImage}
+            aria-label={copy.attachImage}
           >
             <ImageIcon className="h-5 w-5" />
           </Button>
@@ -215,8 +309,8 @@ export function ChatInput({ onSend, disabled }) {
             }`}
             onClick={isRecording ? stopRecording : startRecording}
             disabled={disabled || isProcessingAudio}
-            title={isRecording ? "Stop recording" : "Record voice message"}
-            aria-label={isRecording ? "Stop recording" : "Record voice message"}
+            title={isRecording ? copy.stopRecording : copy.recordVoice}
+            aria-label={isRecording ? copy.stopRecording : copy.recordVoice}
           >
             {isProcessingAudio ? (
               <Loader2 className="h-5 w-5 animate-spin" />
@@ -232,7 +326,7 @@ export function ChatInput({ onSend, disabled }) {
             value={text}
             onChange={handleTextChange}
             onKeyDown={handleKeyDown}
-            placeholder="Ask Farmly for advice..."
+            placeholder={copy.placeholder}
             className="flex-1 resize-none bg-transparent py-2 px-1 outline-none min-h-[40px] max-h-[150px] text-sm custom-scrollbar"
             rows={1}
             disabled={disabled || isRecording || isProcessingAudio}
@@ -243,8 +337,8 @@ export function ChatInput({ onSend, disabled }) {
             size="icon"
             className="shrink-0 rounded-full h-9 w-9"
             disabled={(!text.trim() && !image) || disabled || isRecording || isProcessingAudio}
-            title="Send message"
-            aria-label="Send message"
+            title={copy.sendMessage}
+            aria-label={copy.sendMessage}
           >
             <Send className="h-4 w-4" />
           </Button>
@@ -252,8 +346,8 @@ export function ChatInput({ onSend, disabled }) {
 
         {(isRecording || isProcessingAudio || recordingError) && (
           <div className="px-2 text-xs">
-            {isRecording && <span className="text-destructive">Recording...</span>}
-            {isProcessingAudio && <span className="text-muted-foreground">Processing audio...</span>}
+            {isRecording && <span className="text-destructive">{copy.recording}</span>}
+            {isProcessingAudio && <span className="text-muted-foreground">{copy.processing}</span>}
             {recordingError && <span className="text-destructive">{recordingError}</span>}
           </div>
         )}

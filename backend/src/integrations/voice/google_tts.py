@@ -1,5 +1,7 @@
 from src.config.settings import get_settings
 from src.integrations.voice.google_credentials import get_google_credentials
+from src.integrations.voice.hasab_client import synthesize_with_hasab
+from src.services.language import is_amharic
 
 
 def _load_texttospeech():
@@ -8,8 +10,11 @@ def _load_texttospeech():
     return texttospeech
 
 
-def synthesize_speech(text: str) -> bytes:
+def synthesize_speech(text: str, language_code: str | None = None) -> bytes:
     settings = get_settings()
+    if is_amharic(language_code or settings.google_tts_language_code):
+        return synthesize_with_hasab(text, language_code=language_code)
+
     texttospeech = _load_texttospeech()
     client = texttospeech.TextToSpeechClient(credentials=get_google_credentials())
 

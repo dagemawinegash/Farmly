@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, File, HTTPException, Response, UploadFile, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Response, UploadFile, status
 
 from src.api.schemas.voice import VoiceSynthesisRequest, VoiceTranscriptionResponse
 from src.auth.dependencies import get_current_user
@@ -9,6 +9,13 @@ from src.integrations.voice.google_tts import synthesize_speech
 
 
 router = APIRouter(prefix="/api/voice", tags=["Voice"])
+
+
+def _preferred_language(current_user: User, override: str | None = None) -> str | None:
+    if override and override.strip():
+        return override.strip()
+    profile = getattr(current_user, "profile", None)
+    return getattr(profile, "preferred_language", None)
 
 
 async def _read_audio_upload(audio: UploadFile) -> bytes:
@@ -39,13 +46,18 @@ async def _read_audio_upload(audio: UploadFile) -> bytes:
 @router.post("/transcribe", response_model=VoiceTranscriptionResponse)
 async def transcribe_voice(
     audio: UploadFile = File(...),
+    language_code: str | None = Form(default=None),
     current_user: User = Depends(get_current_user),
 ) -> VoiceTranscriptionResponse:
-    del current_user
     audio_bytes = await _read_audio_upload(audio)
 
     try:
-        result = transcribe_audio(audio_bytes)
+        result = transcribe_audio(
+            audio_bytes,
+            language_code=_preferred_language(current_user, language_code),
+            filename=audio.filename or "voice-message.webm",
+            content_type=audio.content_type or "audio/webm",
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,
@@ -64,8 +76,6 @@ def synthesize_voice(
     payload: VoiceSynthesisRequest,
     current_user: User = Depends(get_current_user),
 ) -> Response:
-    del current_user
-
     text = payload.text.strip()
     if not text:
         raise HTTPException(
@@ -74,7 +84,10 @@ def synthesize_voice(
         )
 
     try:
-        audio_bytes = synthesize_speech(text)
+        audio_bytes = synthesize_speech(
+            text,
+            language_code=_preferred_language(current_user, payload.language_code),
+        )
     except Exception as exc:
         raise HTTPException(
             status_code=status.HTTP_502_BAD_GATEWAY,

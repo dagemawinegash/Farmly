@@ -114,6 +114,7 @@ def build_profile_context(
         "full_name": profile.full_name or "",
         "location": location_used or "",
         "preferred_language": profile.preferred_language or "",
+        "response_language": "English",
         "user_type": profile.user_type or "",
         "years_experience": str(profile.years_experience) if profile.years_experience is not None else "",
         "main_goal": profile.main_goal or "",

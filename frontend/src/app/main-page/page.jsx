@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { getVoiceLanguageCode, useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/lib/api";
 import { chatApi } from "@/lib/chat";
 import { voiceApi } from "@/lib/voice";
@@ -14,6 +15,7 @@ const DEBUG_ENABLED =
 export default function MainPage() {
   const navigate = useNavigate();
   const { accessToken, clearToken, isHydrated } = useAuth();
+  const { language, setLanguage } = useLanguage();
 
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [sessions, setSessions] = useState([]);
@@ -160,10 +162,11 @@ export default function MainPage() {
 
     stopAssistantAudio();
     const requestId = audioRequestIdRef.current;
+    const voiceLanguageCode = getVoiceLanguageCode(language);
 
     setSpeakingMessageId(message.message_id);
     try {
-      const { data } = await voiceApi.synthesize(message.content);
+      const { data } = await voiceApi.synthesize(message.content, voiceLanguageCode);
       if (audioRequestIdRef.current !== requestId) {
         return;
       }
@@ -226,6 +229,7 @@ export default function MainPage() {
     try {
       setIsLoading(true);
       let outgoingText = text?.trim() || "";
+      const voiceLanguageCode = getVoiceLanguageCode(language);
 
       let sessionId = activeSessionId;
       let wasNewSession = false;
@@ -244,8 +248,11 @@ export default function MainPage() {
       }
 
       if (audio) {
-        tempMessageId = addTempUserMessage(sessionId, "Transcribing voice...");
-        const { data } = await voiceApi.transcribe(audio);
+        tempMessageId = addTempUserMessage(
+          sessionId,
+          language === "am" ? "ድምጽ በጽሑፍ በመቀየር ላይ..." : "Transcribing voice..."
+        );
+        const { data } = await voiceApi.transcribe(audio, voiceLanguageCode);
         outgoingText = data?.transcript?.trim() || "";
         if (!outgoingText) {
           throw new Error("Voice transcription returned no text.");
@@ -255,7 +262,7 @@ export default function MainPage() {
         tempMessageId = addTempUserMessage(sessionId, outgoingText);
       }
 
-      const res = await chatApi.sendMessage(sessionId, outgoingText, image, null);
+      const res = await chatApi.sendMessage(sessionId, outgoingText, image, null, voiceLanguageCode);
       const { user_message, assistant_message, chosen_route } = res.data;
 
       if (chosen_route) {
@@ -278,7 +285,12 @@ export default function MainPage() {
     } catch (err) {
       console.error("Failed to send message", err);
       if (tempMessageId) {
-        updateTempUserMessage(tempMessageId, "Voice transcription failed. Please try again.");
+        updateTempUserMessage(
+          tempMessageId,
+          language === "am"
+            ? "የድምጽ መልዕክት ወደ ጽሑፍ መቀየር አልተሳካም። እባክዎ እንደገና ይሞክሩ።"
+            : "Voice transcription failed. Please try again."
+        );
       }
     } finally {
       setIsLoading(false);
@@ -308,6 +320,8 @@ export default function MainPage() {
         setIsDevMode={setIsDevMode}
         onSpeakMessage={playAssistantAudio}
         speakingMessageId={speakingMessageId}
+        language={language}
+        setLanguage={setLanguage}
       />
     </div>
   );

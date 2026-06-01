@@ -1,15 +1,36 @@
 import { useEffect, useRef } from "react";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import { Menu, Sprout, CloudRain, Bug, Leaf } from "lucide-react";
+import { Menu, Sprout, CloudRain, Bug, Leaf, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { SUPPORTED_LANGUAGES } from "@/contexts/LanguageContext";
 
-const QUICK_ACTIONS = [
-  { icon: Sprout, label: "Recommend a crop", text: "Can you recommend a crop suitable for my location?" },
-  { icon: CloudRain, label: "Check the weather", text: "What is the weather forecast for the next few days?" },
-  { icon: Bug, label: "Diagnose my plant", text: "I need help diagnosing a problem with my plant. Should I upload a photo?" },
-  { icon: Leaf, label: "Fertilizer advice", text: "What fertilizer should I use for my farm?" },
-];
+const COPY = {
+  en: {
+    title: "Farmly Assistant",
+    devMode: "Dev Mode",
+    welcomeTitle: "Welcome to Farmly",
+    welcomeSubtitle: "Your personal agricultural assistant. Ask me anything or choose an option below.",
+    quickActions: [
+      { icon: Sprout, label: "Recommend a crop", text: "Can you recommend a crop suitable for my location?" },
+      { icon: CloudRain, label: "Check the weather", text: "What is the weather forecast for the next few days?" },
+      { icon: Bug, label: "Diagnose my plant", text: "I need help diagnosing a problem with my plant. Should I upload a photo?" },
+      { icon: Leaf, label: "Fertilizer advice", text: "What fertilizer should I use for my farm?" },
+    ],
+  },
+  am: {
+    title: "Farmly ረዳት",
+    devMode: "Dev Mode",
+    welcomeTitle: "ወደ Farmly እንኳን በደህና መጡ",
+    welcomeSubtitle: "የግብርና ጥያቄዎን በጽሑፍ፣ በድምጽ ወይም በምስል ይጠይቁ።",
+    quickActions: [
+      { icon: Sprout, label: "የሰብል ምክር", text: "ለአካባቢዬ የሚስማማ ሰብል ምን ልዝራ?" },
+      { icon: CloudRain, label: "የአየር ሁኔታ", text: "የቀጣዮቹ ቀናት የአየር ሁኔታ ትንበያ ምን ይመስላል?" },
+      { icon: Bug, label: "ተክል መመርመር", text: "በተክሌ ላይ ችግር አለ። ፎቶ ልላክ?" },
+      { icon: Leaf, label: "የማዳበሪያ ምክር", text: "ለእርሻዬ ምን አይነት ማዳበሪያ ልጠቀም?" },
+    ],
+  },
+};
 
 export function ChatArea({ 
   messages, 
@@ -19,9 +40,12 @@ export function ChatArea({
   isDevMode,
   setIsDevMode,
   onSpeakMessage,
-  speakingMessageId
+  speakingMessageId,
+  language = "en",
+  setLanguage
 }) {
   const bottomRef = useRef(null);
+  const copy = COPY[language] || COPY.en;
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -40,11 +64,26 @@ export function ChatArea({
           >
             <Menu className="h-5 w-5" />
           </Button>
-          <h1 className="text-lg font-semibold text-foreground">Farmly Assistant</h1>
+          <h1 className="text-lg font-semibold text-foreground">{copy.title}</h1>
         </div>
         <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <div className="flex items-center gap-1 rounded-md border border-border bg-background px-2 py-1">
+            <Globe className="h-4 w-4" />
+            <select
+              value={language}
+              onChange={(event) => setLanguage?.(event.target.value)}
+              className="bg-transparent text-xs font-medium text-foreground outline-none"
+              aria-label="Response language"
+            >
+              {SUPPORTED_LANGUAGES.map((item) => (
+                <option key={item.code} value={item.code}>
+                  {item.tag}
+                </option>
+              ))}
+            </select>
+          </div>
           <label htmlFor="dev-mode" className="hidden sm:inline-block cursor-pointer">
-            Dev Mode
+            {copy.devMode}
           </label>
           <input 
             type="checkbox" 
@@ -63,13 +102,13 @@ export function ChatArea({
             <div className="mb-8 flex h-16 w-16 items-center justify-center rounded-2xl bg-primary/10 text-primary">
               <Leaf className="h-8 w-8" />
             </div>
-            <h2 className="mb-2 text-2xl font-bold text-center">Welcome to Farmly</h2>
+            <h2 className="mb-2 text-2xl font-bold text-center">{copy.welcomeTitle}</h2>
             <p className="mb-8 text-center text-muted-foreground">
-              Your personal agricultural assistant. Ask me anything or choose an option below.
+              {copy.welcomeSubtitle}
             </p>
             
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 w-full">
-              {QUICK_ACTIONS.map((action, idx) => (
+              {copy.quickActions.map((action, idx) => (
                 <button
                   key={idx}
                   onClick={() => onSendMessage(action.text, null)}
@@ -107,7 +146,7 @@ export function ChatArea({
       </div>
 
       {/* Input */}
-      <ChatInput onSend={onSendMessage} disabled={isLoading} />
+      <ChatInput onSend={onSendMessage} disabled={isLoading} language={language} />
     </div>
   );
 }

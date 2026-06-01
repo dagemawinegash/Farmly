@@ -25,6 +25,10 @@ class ChatMessageResponse(BaseModel):
     session_id: UUID
     sender: str
     content: str
+    content_type: str = "text"
+    message_content_english: str | None = None
+    media_url: str | None = None
+    language_used: str | None = None
     sequence_no: int
     created_at: datetime
 

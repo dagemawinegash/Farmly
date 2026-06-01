@@ -2,6 +2,8 @@ from dataclasses import dataclass
 
 from src.config.settings import get_settings
 from src.integrations.voice.google_credentials import get_google_credentials
+from src.integrations.voice.hasab_client import transcribe_with_hasab
+from src.services.language import is_amharic
 
 
 @dataclass(frozen=True)
@@ -9,6 +11,8 @@ class TranscriptionResult:
     transcript: str
     confidence: float | None
     language_code: str
+    translation: str | None = None
+    media_url: str | None = None
 
 
 def _load_speech_v2():
@@ -17,8 +21,30 @@ def _load_speech_v2():
     return speech_v2
 
 
-def transcribe_audio(audio_bytes: bytes) -> TranscriptionResult:
+def transcribe_audio(
+    audio_bytes: bytes,
+    language_code: str | None = None,
+    filename: str = "voice-message.webm",
+    content_type: str = "audio/webm",
+    translate_to_english: bool = False,
+) -> TranscriptionResult:
     settings = get_settings()
+    if is_amharic(language_code or settings.google_stt_language_code):
+        result = transcribe_with_hasab(
+            audio_bytes,
+            filename=filename,
+            content_type=content_type,
+            language_code=language_code,
+            translate_to_english=translate_to_english,
+        )
+        return TranscriptionResult(
+            transcript=result.transcript,
+            confidence=result.confidence,
+            language_code="am-ET",
+            translation=result.translation,
+            media_url=result.media_url,
+        )
+
     if not settings.google_cloud_project:
         raise RuntimeError("GOOGLE_CLOUD_PROJECT is not configured.")
 
@@ -61,5 +87,5 @@ def transcribe_audio(audio_bytes: bytes) -> TranscriptionResult:
     return TranscriptionResult(
         transcript=transcript,
         confidence=max(confidences) if confidences else None,
-        language_code=settings.google_stt_language_code,
+        language_code=language_code or settings.google_stt_language_code,
     )

@@ -55,6 +55,10 @@ class ChatMessage(Base):
     )
     sender: Mapped[str] = mapped_column(String(20))
     content: Mapped[str] = mapped_column(Text)
+    content_type: Mapped[str] = mapped_column(String(20), default="text")
+    message_content_english: Mapped[str | None] = mapped_column(Text, nullable=True)
+    media_url: Mapped[str | None] = mapped_column(String(512), nullable=True)
+    language_used: Mapped[str | None] = mapped_column(String(100), nullable=True)
     sequence_no: Mapped[int] = mapped_column(Integer, default=1)
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=_utcnow)
 
