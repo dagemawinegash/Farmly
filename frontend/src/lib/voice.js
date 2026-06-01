@@ -1,10 +1,17 @@
 import { api } from "./api";
 
 export const voiceApi = {
-  transcribe: async (audioFile) => {
+  transcribe: async (audioFile, languageCode) => {
     const formData = new FormData();
-    const extension = audioFile.type.includes("ogg") ? "ogg" : "webm";
+    const extension = audioFile.type.includes("wav")
+      ? "wav"
+      : audioFile.type.includes("ogg")
+        ? "ogg"
+        : "webm";
     formData.append("audio", audioFile, `voice-message.${extension}`);
+    if (languageCode) {
+      formData.append("language_code", languageCode);
+    }
 
     return api.post("/api/voice/transcribe", formData, {
       headers: {
@@ -13,10 +20,10 @@ export const voiceApi = {
     });
   },
 
-  synthesize: async (text) => {
+  synthesize: async (text, languageCode) => {
     return api.post(
       "/api/voice/synthesize",
-      { text },
+      { text, language_code: languageCode },
       {
         responseType: "blob",
       }

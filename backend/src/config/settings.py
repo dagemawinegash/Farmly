@@ -58,6 +58,12 @@ class Settings(BaseSettings):
     google_tts_speaking_rate: float = Field(default=0.96, ge=0.25, le=4.0)
     voice_audio_max_bytes: int = 10 * 1024 * 1024
 
+    hasab_api_key: str | None = None
+    hasab_api_base_url: str = "https://api.hasab.ai/api"
+    hasab_timeout_seconds: int = 60
+    hasab_amharic_language_code: str = "amh"
+    hasab_tts_amharic_speaker_name: str = "Selam"
+
     debug_reset_token: str | None = None
 
     @field_validator("google_tts_voice_name", mode="before")

@@ -14,6 +14,7 @@ from src.api.routes.recommendation import router as recommendation_router
 from src.api.routes.voice import router as voice_router
 from src.config.settings import get_settings
 from src.db.base import Base
+from src.db.schema_migrations import ensure_chat_message_storage_columns
 from src.db.session import engine
 from src.db import models 
 
@@ -24,6 +25,7 @@ settings = get_settings()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     Base.metadata.create_all(bind=engine)
+    ensure_chat_message_storage_columns(engine)
     yield
 
 

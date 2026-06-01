@@ -21,13 +21,18 @@ class OrchestratorState(TypedDict):
     result_text: str
 
 
-def _build_profile_context(profile: UserProfile | None) -> dict[str, str]:
+def _build_profile_context(profile: UserProfile | None, language_code: str | None = None) -> dict[str, str]:
+    language_context = {
+        "preferred_language": language_code or "",
+        "response_language": "English",
+    }
     if not profile:
-        return {}
+        return language_context
     return {
         "full_name": profile.full_name or "",
         "location": profile.location or "",
-        "preferred_language": profile.preferred_language or "",
+        "preferred_language": language_code or profile.preferred_language or "",
+        "response_language": "English",
         "user_type": profile.user_type or "",
         "years_experience": str(profile.years_experience) if profile.years_experience is not None else "",
         "main_goal": profile.main_goal or "",
@@ -44,18 +49,38 @@ def _collect_recent_messages(db: Session, session_id: str, limit: int = 5) -> li
         .all()
     )
     rows = list(reversed(rows))
-    return [{"sender": m.sender, "content": m.content} for m in rows]
+    return [
+        {
+            "sender": m.sender,
+            "content": m.message_content_english or m.content,
+        }
+        for m in rows
+    ]
 
 
 def _classify_route(message: str, has_image: bool) -> str:
     if has_image:
         return "disease_diagnosis"
     text = (message or "").lower()
-    if any(k in text for k in ["fertilizer", "fertiliser", "npk", "urea", "dap"]):
+    if any(k in text for k in ["fertilizer", "fertiliser", "npk", "urea", "dap", "ማዳበሪያ", "ዩሪያ", "ዳፕ", "ዲኤፒ"]):
         return "fertilizer_recommendation"
-    if any(k in text for k in ["weather", "rain", "forecast", "temperature", "wind"]):
+    if any(k in text for k in ["weather", "rain", "forecast", "temperature", "wind", "አየር", "ዝናብ", "ትንበያ", "ሙቀት", "ንፋስ"]):
         return "weather_recommendation"
-    if any(k in text for k in ["recommend crop", "what crop", "what to plant", "which crop", "plant now"]):
+    if any(
+        k in text
+        for k in [
+            "recommend crop",
+            "what crop",
+            "what to plant",
+            "which crop",
+            "plant now",
+            "ምን ልዝራ",
+            "የትኛውን ሰብል",
+            "ሰብል ምክር",
+            "መትከል",
+            "ልተክል",
+        ]
+    ):
         return "crop_recommendation"
     return "general"
 
@@ -67,6 +92,7 @@ def run_chat_orchestrator(
     profile: UserProfile | None,
     message: str,
     image_bytes: bytes | None,
+    language_code: str | None = None,
 ) -> tuple[str, str]:
     state: OrchestratorState = {
         "message": message,
@@ -75,7 +101,7 @@ def run_chat_orchestrator(
         "result_text": "",
     }
 
-    profile_context = _build_profile_context(profile)
+    profile_context = _build_profile_context(profile, language_code=language_code)
     recent_messages = _collect_recent_messages(db, session_id, limit=5)
     def classify_node(s: OrchestratorState) -> OrchestratorState:
         s["chosen_route"] = _classify_route(s["message"], s["has_image"])

@@ -18,8 +18,10 @@ from src.config.settings import get_settings
 from src.db.models.chat import ChatMessage, ChatSession
 from src.db.models.user import User, UserProfile
 from src.db.session import get_db
+from src.integrations.voice.hasab_client import translate_text_with_hasab
 from src.integrations.voice.google_stt import transcribe_audio
 from src.services.chat_orchestrator import run_chat_orchestrator
+from src.services.language import language_name, language_to_bcp47, normalize_app_language
 
 
 router = APIRouter(prefix="/api/chat", tags=["Chat"])
@@ -41,6 +43,10 @@ def _to_message_response(message: ChatMessage) -> ChatMessageResponse:
         session_id=message.session_id,
         sender=message.sender,
         content=message.content,
+        content_type=message.content_type or "text",
+        message_content_english=message.message_content_english,
+        media_url=message.media_url,
+        language_used=message.language_used,
         sequence_no=message.sequence_no,
         created_at=message.created_at,
     )
@@ -80,6 +86,22 @@ def _read_audio_upload(audio: UploadFile) -> bytes:
         )
 
     return audio_bytes
+
+
+def _translate_amharic_to_english(text: str) -> str:
+    return translate_text_with_hasab(
+        text,
+        source_language="am-ET",
+        target_language="en-US",
+    )
+
+
+def _translate_english_to_amharic(text: str) -> str:
+    return translate_text_with_hasab(
+        text,
+        source_language="en-US",
+        target_language="am-ET",
+    )
 
 
 @router.post("/sessions", response_model=ChatSessionResponse, status_code=status.HTTP_201_CREATED)
@@ -147,6 +169,7 @@ def get_session_messages(
 def send_message(
     session_id: UUID,
     message: str | None = Form(default=None),
+    language_code: str | None = Form(default=None),
     image: UploadFile | None = File(default=None),
     audio: UploadFile | None = File(default=None),
     current_user: User = Depends(get_current_user),
@@ -181,11 +204,25 @@ def send_message(
                 detail="Uploaded image is empty.",
             )
 
+    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
+    effective_language = language_code or (profile.preferred_language if profile else None)
+    normalized_language = normalize_app_language(effective_language, default="en")
+    bcp47_language = language_to_bcp47(effective_language)
+    language_used = language_name(normalized_language)
+
     transcript: str | None = None
+    user_content_english: str | None = None
+    media_url: str | None = None
     if audio is not None:
         audio_bytes = _read_audio_upload(audio)
         try:
-            transcription = transcribe_audio(audio_bytes)
+            transcription = transcribe_audio(
+                audio_bytes,
+                language_code=bcp47_language,
+                filename=audio.filename or "voice-message.webm",
+                content_type=audio.content_type or "audio/webm",
+                translate_to_english=normalized_language == "am",
+            )
         except Exception as exc:
             raise HTTPException(
                 status_code=status.HTTP_502_BAD_GATEWAY,
@@ -193,6 +230,8 @@ def send_message(
             ) from exc
 
         transcript = transcription.transcript.strip()
+        user_content_english = transcription.translation
+        media_url = transcription.media_url
         if not transcript:
             raise HTTPException(
                 status_code=status.HTTP_400_BAD_REQUEST,
@@ -200,15 +239,36 @@ def send_message(
             )
         text = transcript
 
+    content_type = "audio" if audio is not None else "image" if image is not None else "text"
     user_content = text if text else "[image uploaded for diagnosis]"
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
-    chosen_route, assistant_text = run_chat_orchestrator(
+    if not user_content_english and normalized_language == "en":
+        user_content_english = user_content
+    elif not user_content_english and normalized_language == "am" and text:
+        try:
+            user_content_english = _translate_amharic_to_english(user_content)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"Amharic-to-English translation failed: {exc}",
+            ) from exc
+
+    chosen_route, assistant_text_english = run_chat_orchestrator(
         db=db,
         session_id=session.session_id,
         profile=profile,
-        message=user_content,
+        message=user_content_english or user_content,
         image_bytes=image_bytes,
+        language_code=bcp47_language,
     )
+    assistant_text = assistant_text_english
+    if normalized_language == "am":
+        try:
+            assistant_text = _translate_english_to_amharic(assistant_text_english)
+        except Exception as exc:
+            raise HTTPException(
+                status_code=status.HTTP_502_BAD_GATEWAY,
+                detail=f"English-to-Amharic translation failed: {exc}",
+            ) from exc
 
     last_seq = (
         db.query(ChatMessage.sequence_no)
@@ -222,6 +282,10 @@ def send_message(
         session_id=session.session_id,
         sender="user",
         content=user_content,
+        content_type=content_type,
+        message_content_english=user_content_english,
+        media_url=media_url,
+        language_used=language_used,
         sequence_no=next_seq,
     )
     db.add(user_message)
@@ -230,6 +294,10 @@ def send_message(
         session_id=session.session_id,
         sender="assistant",
         content=assistant_text,
+        content_type="text",
+        message_content_english=assistant_text_english,
+        media_url=None,
+        language_used=language_used,
         sequence_no=next_seq + 1,
     )
     db.add(assistant_message)

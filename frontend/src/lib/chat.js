@@ -25,16 +25,23 @@ export const chatApi = {
     });
   },
 
-  sendMessage: async (sessionId, message, imageFile, audioFile) => {
+  sendMessage: async (sessionId, message, imageFile, audioFile, languageCode) => {
     const formData = new FormData();
     if (message) {
       formData.append("message", message);
+    }
+    if (languageCode) {
+      formData.append("language_code", languageCode);
     }
     if (imageFile) {
       formData.append("image", imageFile);
     }
     if (audioFile) {
-      const extension = audioFile.type.includes("ogg") ? "ogg" : "webm";
+      const extension = audioFile.type.includes("wav")
+        ? "wav"
+        : audioFile.type.includes("ogg")
+          ? "ogg"
+          : "webm";
       formData.append("audio", audioFile, `voice-message.${extension}`);
     }
 
