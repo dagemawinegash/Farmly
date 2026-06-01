@@ -6,7 +6,10 @@ export const alertsApi = {
       params: { limit, offset },
     }),
 
-  generateWeatherAlerts: async () => api.post("/api/alerts/weather/generate"),
+  generateWeatherAlerts: async (languageCode) =>
+    api.post("/api/alerts/weather/generate", null, {
+      params: languageCode ? { language_code: languageCode } : {},
+    }),
 
   markRead: async (alertId) => api.patch(`/api/alerts/${alertId}/read`),
 

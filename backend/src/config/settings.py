@@ -3,7 +3,6 @@ from functools import lru_cache
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-
 DEFAULT_GOOGLE_TTS_VOICE_NAME = "en-US-Chirp3-HD-Aoede"
 
 
@@ -30,7 +29,7 @@ class Settings(BaseSettings):
     sms_ethiopia_base_url: str = "https://smsethiopia.et/api"
 
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-3-flash-preview"
+    gemini_model: str = "gemini-3.5-flash"
     gemini_timeout_seconds: int = 20
 
     isda_username: str | None = None

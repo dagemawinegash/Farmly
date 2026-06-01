@@ -3,14 +3,31 @@ import remarkGfm from "remark-gfm";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 import { Bot, Square, User, Volume2 } from "lucide-react";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 const IMAGE_UPLOAD_PLACEHOLDER = "[image uploaded for diagnosis]";
+const COPY = {
+  en: {
+    uploadedCrop: "Uploaded crop",
+    stopResponse: "Stop response",
+    playResponse: "Play response",
+    route: "route",
+  },
+  am: {
+    uploadedCrop: "የተጫነ የሰብል ምስል",
+    stopResponse: "መልሱን አቁም",
+    playResponse: "መልሱን አጫውት",
+    route: "route",
+  },
+};
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
 
 export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
+  const { language } = useLanguage();
+  const copy = COPY[language] || COPY.en;
   const isUser = message.sender === "user";
   const imageUrl = message.image_preview_url || message.imagePreviewUrl || "";
   const showUserText = Boolean(
@@ -46,7 +63,7 @@ export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
                 {imageUrl && (
                   <img
                     src={imageUrl}
-                    alt="Uploaded crop"
+                    alt={copy.uploadedCrop}
                     className="max-h-64 max-w-full rounded-xl object-cover"
                   />
                 )}
@@ -79,8 +96,8 @@ export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
                     ? "text-red-600 hover:text-red-700"
                     : "text-muted-foreground hover:text-foreground"
                 )}
-                title={isSpeaking ? "Stop response" : "Play response"}
-                aria-label={isSpeaking ? "Stop response" : "Play response"}
+                title={isSpeaking ? copy.stopResponse : copy.playResponse}
+                aria-label={isSpeaking ? copy.stopResponse : copy.playResponse}
               >
                 {isSpeaking ? (
                   <Square className="h-3.5 w-3.5 fill-current" />
@@ -93,7 +110,7 @@ export function MessageBubble({ message, isDevMode, onSpeak, isSpeaking }) {
 
           {isDevMode && !isUser && message.chosen_route && (
             <div className="mt-1 bg-black/80 text-green-400 text-[10px] font-mono px-2 py-1 rounded w-fit border border-green-500/30 shadow-inner">
-              <span className="opacity-70">route:</span> {message.chosen_route}
+              <span className="opacity-70">{copy.route}:</span> {message.chosen_route}
             </div>
           )}
         </div>

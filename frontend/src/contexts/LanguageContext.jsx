@@ -4,7 +4,7 @@ const LanguageContext = createContext(null);
 
 export const SUPPORTED_LANGUAGES = [
   { code: "en", tag: "US", name: "English" },
-  { code: "am", tag: "ET", name: "Amharic" },
+  { code: "am", tag: "ET", name: "አማርኛ" },
 ];
 
 export const LANGUAGE_TO_BCP47 = {

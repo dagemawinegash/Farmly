@@ -5,16 +5,27 @@ import { Button } from "@/components/ui/button";
 import { SUPPORTED_LANGUAGES, useLanguage } from "@/contexts/LanguageContext";
 
 const COPY = {
-  brand: "Farmly",
-  signIn: "Sign In",
-  heroTitle: "Empowering Farmers with AI-Powered Agricultural Insights",
-  heroSubtitle:
-    "Get crop recommendations, weather guidance, fertilizer advice, and disease diagnosis in one simple place.",
-  getStarted: "Get Started",
+  en: {
+    brand: "Farmly",
+    signIn: "Sign In",
+    heroTitle: "Empowering Farmers with AI-Powered Agricultural Insights",
+    heroSubtitle:
+      "Get crop recommendations, weather guidance, fertilizer advice, and disease diagnosis in one simple place.",
+    getStarted: "Get Started",
+  },
+  am: {
+    brand: "Farmly",
+    signIn: "ግባ",
+    heroTitle: "ገበሬዎችን በAI የታገዘ የግብርና ምክር ማብቃት",
+    heroSubtitle:
+      "የሰብል ምክር፣ የአየር ሁኔታ መመሪያ፣ የማዳበሪያ ምክር እና የበሽታ ምርመራ በአንድ ቀላል ቦታ።",
+    getStarted: "ጀምር",
+  },
 };
 
 export default function HomePage() {
   const { language, setLanguage } = useLanguage();
+  const copy = COPY[language] || COPY.en;
   const [showLanguageDropdown, setShowLanguageDropdown] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const languageMenuRef = useRef(null);
@@ -52,7 +63,7 @@ export default function HomePage() {
           }`}
         >
           <Leaf className={`h-6 w-6 ${scrolled ? "text-green-600" : "text-white"}`} />
-          {COPY.brand}
+          {copy.brand}
         </span>
 
         <div className="flex items-center gap-2">
@@ -101,7 +112,7 @@ export default function HomePage() {
               scrolled ? "bg-primary text-white hover:bg-green-900" : "bg-white text-gray-900 hover:bg-white/80"
             }`}
           >
-            <Link to="/auth-options">{COPY.signIn}</Link>
+            <Link to="/auth-options">{copy.signIn}</Link>
           </Button>
         </div>
       </div>
@@ -113,12 +124,12 @@ export default function HomePage() {
         <div className="pointer-events-none absolute inset-0 bg-black/40" />
         <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-4 text-center sm:px-6">
           <h1 className="max-w-4xl text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
-            {COPY.heroTitle}
+            {copy.heroTitle}
           </h1>
-          <p className="mt-4 max-w-2xl text-sm text-green-100 sm:text-base md:text-lg">{COPY.heroSubtitle}</p>
+          <p className="mt-4 max-w-2xl text-sm text-green-100 sm:text-base md:text-lg">{copy.heroSubtitle}</p>
           <div className="mt-7">
             <Button className="bg-green-600 px-6 py-2 text-white hover:bg-green-700">
-              <Link to="/auth-options">{COPY.getStarted}</Link>
+              <Link to="/auth-options">{copy.getStarted}</Link>
             </Button>
           </div>
         </div>

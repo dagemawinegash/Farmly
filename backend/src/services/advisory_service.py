@@ -60,7 +60,7 @@ SORGHUM_ADVICE = {
         "The sorghum looks normal from this image. Keep monitoring the field, avoid water stress, "
         "and check leaves and heads every few days for new spots, rust, mold, or smut symptoms."
     ),
-    "Anthracnose_Red_Rot": (
+    "": (
         "This may be anthracnose or red rot. Remove badly affected plant parts where practical, "
         "avoid overhead irrigation, improve field airflow, and rotate away from sorghum or related grasses next season."
     ),

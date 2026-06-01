@@ -19,6 +19,7 @@ const COPY = {
     permissionNeeded: "Microphone permission is needed for voice messages.",
     noAudio: "No audio was recorded.",
     attachImage: "Attach image",
+    preview: "Selected image preview",
     stopRecording: "Stop recording",
     recordVoice: "Record voice message",
     placeholder: "Ask Farmly for advice...",
@@ -35,6 +36,7 @@ const COPY = {
     permissionNeeded: "የድምጽ መልዕክት ለመላክ የማይክሮፎን ፈቃድ ያስፈልጋል።",
     noAudio: "ምንም ድምጽ አልተቀዳም።",
     attachImage: "ምስል አያይዝ",
+    preview: "የተመረጠ ምስል ቅድመ እይታ",
     stopRecording: "መቅዳት አቁም",
     recordVoice: "የድምጽ መልዕክት ቅዳ",
     placeholder: "Farmlyን የግብርና ምክር ይጠይቁ...",
@@ -328,7 +330,7 @@ export function ChatInput({ onSend, disabled, language = "en" }) {
           <div className="relative mb-2 inline-block w-fit px-2 pt-2">
             <img 
               src={previewUrl} 
-              alt="Preview" 
+              alt={copy.preview} 
               className="h-20 w-20 rounded-md object-cover border border-border"
             />
             <button

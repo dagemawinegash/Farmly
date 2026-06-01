@@ -14,8 +14,70 @@ import {
 import { alertsApi } from "@/lib/alerts";
 import { extractErrorMessage } from "@/lib/errors";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+
+const COPY = {
+  en: {
+    chat: "Chat",
+    checkAlerts: "Check weather alerts",
+    brand: "Farmly Alerts",
+    title: "Weather risks for your farm",
+    subtitle:
+      "Farmly checks the next 5 days of weather and turns risky conditions into simple actions farmers can follow.",
+    unread: "unread",
+    weatherOnly: "Weather-only MVP",
+    noAlertsTitle: "No alerts yet",
+    noAlertsBody: 'Click "Check weather alerts" to generate alerts from your saved farm location.',
+    whatToDo: "What to do",
+    markRead: "Mark as read",
+    delete: "Delete",
+    deleteConfirm: "Delete this alert?",
+    alertDeleted: "Alert deleted.",
+    generated: (count) => `${count} weather alert${count === 1 ? "" : "s"} generated.`,
+    loadError: "Could not load alerts.",
+    generateError: "Could not generate weather alerts.",
+    updateError: "Could not update alert.",
+    deleteError: "Could not delete alert.",
+    rain: "Rain",
+    max: "Max",
+    severity: {
+      high: "high",
+      medium: "medium",
+      low: "low",
+    },
+  },
+  am: {
+    chat: "ውይይት",
+    checkAlerts: "የአየር ሁኔታ አስጠንቅቂያ ፈትሽ",
+    brand: "Farmly አስጠንቅቂያዎች",
+    title: "ለእርሻዎ የአየር ሁኔታ አደጋዎች",
+    subtitle:
+      "Farmly የሚቀጥሉትን 5 ቀናት የአየር ሁኔታ ይፈትሻል እና ለገበሬዎች ቀላል የሆኑ የተግባር ምክሮችን ይሰጣል።",
+    unread: "ያልተነበበ",
+    weatherOnly: "የአየር ሁኔታ MVP",
+    noAlertsTitle: "እስካሁን አስጠንቅቂያ የለም",
+    noAlertsBody: "ከተቀመጠው የእርሻ ቦታዎ መረጃ አስጠንቅቂያ ለማመንጨት የአየር ሁኔታ አስጠንቅቂያ ፈትሽ የሚለውን ይጫኑ።",
+    whatToDo: "ምን ማድረግ እንዳለብዎ",
+    markRead: "እንደተነበበ ምልክት አድርግ",
+    delete: "አጥፋ",
+    deleteConfirm: "ይህን አስጠንቅቂያ ማጥፋት ይፈልጋሉ?",
+    alertDeleted: "አስጠንቅቂያው ተጠፍቷል።",
+    generated: (count) => `${count} የአየር ሁኔታ አስጠንቅቂያ ተፈጥሯል።`,
+    loadError: "አስጠንቅቂያዎችን መጫን አልተቻለም።",
+    generateError: "የአየር ሁኔታ አስጠንቅቂያ ማመንጨት አልተቻለም።",
+    updateError: "አስጠንቅቂያውን ማዘመን አልተቻለም።",
+    deleteError: "አስጠንቅቂያውን ማጥፋት አልተቻለም።",
+    rain: "ዝናብ",
+    max: "ከፍተኛ",
+    severity: {
+      high: "ከፍተኛ",
+      medium: "መካከለኛ",
+      low: "ዝቅተኛ",
+    },
+  },
+};
 
 const severityStyles = {
   high: {
@@ -35,9 +97,9 @@ const severityStyles = {
   },
 };
 
-function formatDate(value) {
+function formatDate(value, language) {
   if (!value) return "";
-  return new Intl.DateTimeFormat("en", {
+  return new Intl.DateTimeFormat(language === "am" ? "am-ET" : "en", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
@@ -45,7 +107,7 @@ function formatDate(value) {
   }).format(new Date(value));
 }
 
-function AlertCard({ alert, onMarkRead, onDelete }) {
+function AlertCard({ alert, onMarkRead, onDelete, copy, language }) {
   const styles = severityStyles[alert.severity] || severityStyles.low;
   const forecast = alert.raw_weather?.forecast_days?.slice(0, 5) || [];
 
@@ -63,13 +125,13 @@ function AlertCard({ alert, onMarkRead, onDelete }) {
           <div>
             <CardTitle className="text-lg">{alert.title}</CardTitle>
             <p className="mt-1 text-xs text-muted-foreground">
-              {formatDate(alert.created_at)}
+              {formatDate(alert.created_at, language)}
               {alert.location_used ? ` - ${alert.location_used}` : ""}
             </p>
           </div>
         </div>
         <span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${styles.badge}`}>
-          {alert.severity}
+          {copy.severity[alert.severity] || alert.severity}
         </span>
       </CardHeader>
 
@@ -77,7 +139,7 @@ function AlertCard({ alert, onMarkRead, onDelete }) {
         <p className="text-sm leading-6 text-foreground">{alert.message}</p>
         {alert.action_text && (
           <div className="rounded-xl border border-white/70 bg-white/75 p-3 text-sm leading-6">
-            <p className="font-semibold text-foreground">What to do</p>
+            <p className="font-semibold text-foreground">{copy.whatToDo}</p>
             <p className="mt-1 text-muted-foreground">{alert.action_text}</p>
           </div>
         )}
@@ -87,8 +149,8 @@ function AlertCard({ alert, onMarkRead, onDelete }) {
             {forecast.map((day) => (
               <div key={day.date} className="rounded-xl border border-white/70 bg-white/70 p-2 text-xs">
                 <p className="font-semibold text-foreground">{day.date}</p>
-                <p className="mt-1 text-muted-foreground">Rain: {day.rain_mm ?? "-"} mm</p>
-                <p className="text-muted-foreground">Max: {day.temp_max_c ?? "-"} C</p>
+                <p className="mt-1 text-muted-foreground">{copy.rain}: {day.rain_mm ?? "-"} mm</p>
+                <p className="text-muted-foreground">{copy.max}: {day.temp_max_c ?? "-"} C</p>
               </div>
             ))}
           </div>
@@ -98,7 +160,7 @@ function AlertCard({ alert, onMarkRead, onDelete }) {
           {!alert.is_read && (
             <Button variant="outline" size="sm" onClick={() => onMarkRead(alert.alert_id)} className="gap-2 bg-white/80">
               <CheckCircle className="h-4 w-4" />
-              Mark as read
+              {copy.markRead}
             </Button>
           )}
           <Button
@@ -108,7 +170,7 @@ function AlertCard({ alert, onMarkRead, onDelete }) {
             className="gap-2 border-red-200 bg-white/80 text-red-700 hover:bg-red-50"
           >
             <Trash2 className="h-4 w-4" />
-            Delete
+            {copy.delete}
           </Button>
         </div>
       </CardContent>
@@ -119,6 +181,8 @@ function AlertCard({ alert, onMarkRead, onDelete }) {
 export default function AlertsPage() {
   const navigate = useNavigate();
   const { accessToken, isHydrated } = useAuth();
+  const { language } = useLanguage();
+  const copy = COPY[language] || COPY.en;
   const [alerts, setAlerts] = useState([]);
   const [loading, setLoading] = useState(true);
   const [generating, setGenerating] = useState(false);
@@ -143,7 +207,7 @@ export default function AlertsPage() {
       const { data } = await alertsApi.listAlerts();
       setAlerts(data);
     } catch (err) {
-      setError(extractErrorMessage(err, "Could not load alerts."));
+      setError(extractErrorMessage(err, copy.loadError));
     } finally {
       setLoading(false);
     }
@@ -154,11 +218,11 @@ export default function AlertsPage() {
     setError("");
     setSuccess("");
     try {
-      const { data } = await alertsApi.generateWeatherAlerts();
+      const { data } = await alertsApi.generateWeatherAlerts(language);
       setAlerts((previous) => [...data.alerts, ...previous]);
-      setSuccess(`${data.generated_count} weather alert${data.generated_count === 1 ? "" : "s"} generated.`);
+      setSuccess(copy.generated(data.generated_count));
     } catch (err) {
-      setError(extractErrorMessage(err, "Could not generate weather alerts."));
+      setError(extractErrorMessage(err, copy.generateError));
     } finally {
       setGenerating(false);
     }
@@ -171,20 +235,20 @@ export default function AlertsPage() {
         previous.map((alert) => (alert.alert_id === alertId ? data.alert : alert))
       );
     } catch (err) {
-      setError(extractErrorMessage(err, "Could not update alert."));
+      setError(extractErrorMessage(err, copy.updateError));
     }
   }
 
   async function handleDeleteAlert(alertId) {
-    if (!confirm("Delete this alert?")) return;
+    if (!confirm(copy.deleteConfirm)) return;
     setError("");
     setSuccess("");
     try {
       await alertsApi.deleteAlert(alertId);
       setAlerts((previous) => previous.filter((alert) => alert.alert_id !== alertId));
-      setSuccess("Alert deleted.");
+      setSuccess(copy.alertDeleted);
     } catch (err) {
-      setError(extractErrorMessage(err, "Could not delete alert."));
+      setError(extractErrorMessage(err, copy.deleteError));
     }
   }
 
@@ -202,11 +266,11 @@ export default function AlertsPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
           <Link to="/main-page" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
-            Chat
+            {copy.chat}
           </Link>
           <Button onClick={handleGenerateWeatherAlerts} disabled={generating} className="gap-2">
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            Check weather alerts
+            {copy.checkAlerts}
           </Button>
         </div>
       </header>
@@ -217,18 +281,18 @@ export default function AlertsPage() {
             <div>
               <div className="flex items-center gap-2 text-primary">
                 <Bell className="h-5 w-5" />
-                <span className="text-sm font-bold uppercase tracking-wide">Farmly Alerts</span>
+                <span className="text-sm font-bold uppercase tracking-wide">{copy.brand}</span>
               </div>
               <h1 className="mt-3 text-2xl font-extrabold text-foreground sm:text-3xl">
-                Weather risks for your farm
+                {copy.title}
               </h1>
               <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-                Farmly checks the next 5 days of weather and turns risky conditions into simple actions farmers can follow.
+                {copy.subtitle}
               </p>
             </div>
             <div className="rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800">
-              <p className="font-bold">{unreadCount} unread</p>
-              <p className="text-xs">Weather-only MVP</p>
+              <p className="font-bold">{unreadCount} {copy.unread}</p>
+              <p className="text-xs">{copy.weatherOnly}</p>
             </div>
           </div>
         </div>
@@ -247,9 +311,9 @@ export default function AlertsPage() {
         {alerts.length === 0 ? (
           <div className="grid place-items-center rounded-3xl border border-dashed border-green-200 bg-white/75 px-6 py-16 text-center">
             <CloudRain className="h-10 w-10 text-primary" />
-            <h2 className="mt-4 text-xl font-bold">No alerts yet</h2>
+            <h2 className="mt-4 text-xl font-bold">{copy.noAlertsTitle}</h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
-              Click "Check weather alerts" to generate alerts from your saved farm location.
+              {copy.noAlertsBody}
             </p>
           </div>
         ) : (
@@ -260,6 +324,8 @@ export default function AlertsPage() {
                 alert={alert}
                 onMarkRead={handleMarkRead}
                 onDelete={handleDeleteAlert}
+                copy={copy}
+                language={language}
               />
             ))}
           </div>

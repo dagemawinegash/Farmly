@@ -10,19 +10,86 @@ import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/lib/api";
 
 const USER_TYPE_OPTIONS = [
-  { value: "aspiring", label: "Aspiring farmer" },
-  { value: "beginner", label: "Beginner farmer" },
-  { value: "experienced", label: "Experienced farmer" },
-  { value: "explorer", label: "Explorer" },
+  { value: "aspiring", label: { en: "Aspiring farmer", am: "ገበሬ መሆን የሚፈልግ" } },
+  { value: "beginner", label: { en: "Beginner farmer", am: "ጀማሪ ገበሬ" } },
+  { value: "experienced", label: { en: "Experienced farmer", am: "ልምድ ያለው ገበሬ" } },
+  { value: "explorer", label: { en: "Explorer", am: "ለመማር የሚፈልግ" } },
 ];
 
 const MAIN_GOAL_OPTIONS = [
-  { value: "increase_yield", label: "Increase crop yield" },
-  { value: "reduce_costs", label: "Reduce farming costs" },
-  { value: "sustainable_farming", label: "Sustainable farming" },
-  { value: "organic_farming", label: "Organic farming" },
-  { value: "market_access", label: "Better market access" },
+  { value: "increase_yield", label: { en: "Increase crop yield", am: "የሰብል ምርት መጨመር" } },
+  { value: "reduce_costs", label: { en: "Reduce farming costs", am: "የእርሻ ወጪ መቀነስ" } },
+  { value: "sustainable_farming", label: { en: "Sustainable farming", am: "ዘላቂ ግብርና" } },
+  { value: "organic_farming", label: { en: "Organic farming", am: "ኦርጋኒክ ግብርና" } },
+  { value: "market_access", label: { en: "Better market access", am: "የተሻለ የገበያ መዳረሻ" } },
 ];
+
+const COPY = {
+  en: {
+    fallbackError: "Failed to complete onboarding. Please try again.",
+    title: "Tell Us About Your Farming",
+    subtitle: "This helps us personalize recommendations for you.",
+    preferredLanguage: "Preferred Language",
+    english: "English",
+    amharic: "Amharic",
+    farmingExperience: "Farming Experience",
+    farmingExperiencePlaceholder: "Farming Experience",
+    yearsExperience: "Years of Experience",
+    yearsPlaceholder: "Please select years of experience",
+    year: "year",
+    years: "years",
+    mainGoal: "Main Goal",
+    mainGoalPlaceholder: "Main Goal",
+    cropsGrown: "Crops Grown",
+    cropPlaceholder: "Add crop (example: maize)",
+    addAtLeastOneCrop: "Add at least one crop.",
+    back: "Back",
+    saving: "Saving...",
+    complete: "Complete Onboarding",
+    missingPrefix: "Please complete",
+    missing: {
+      accountName: "account name",
+      location: "location",
+      preferredLanguage: "preferred language",
+      farmingExperience: "farming experience",
+      yearsExperience: "years of experience",
+      mainGoal: "main goal",
+      crop: "at least one crop",
+    },
+  },
+  am: {
+    fallbackError: "ኦንቦርዲንግ ማጠናቀቅ አልተቻለም። እባክዎ እንደገና ይሞክሩ።",
+    title: "ስለ እርሻዎ ይንገሩን",
+    subtitle: "ይህ ለእርስዎ የተስማማ ምክር እንድንሰጥ ይረዳናል።",
+    preferredLanguage: "የሚመርጡት ቋንቋ",
+    english: "እንግሊዝኛ",
+    amharic: "አማርኛ",
+    farmingExperience: "የግብርና ልምድ",
+    farmingExperiencePlaceholder: "የግብርና ልምድ",
+    yearsExperience: "የልምድ ዓመታት",
+    yearsPlaceholder: "የልምድ ዓመታትን ይምረጡ",
+    year: "ዓመት",
+    years: "ዓመታት",
+    mainGoal: "ዋና ግብ",
+    mainGoalPlaceholder: "ዋና ግብ",
+    cropsGrown: "የሚያበቅሏቸው ሰብሎች",
+    cropPlaceholder: "ሰብል ያክሉ (ምሳሌ፦ በቆሎ)",
+    addAtLeastOneCrop: "ቢያንስ አንድ ሰብል ያክሉ።",
+    back: "ተመለስ",
+    saving: "በማስቀመጥ ላይ...",
+    complete: "ኦንቦርዲንግ ጨርስ",
+    missingPrefix: "እባክዎ ይሙሉ",
+    missing: {
+      accountName: "የመለያ ስም",
+      location: "ቦታ",
+      preferredLanguage: "የሚመርጡት ቋንቋ",
+      farmingExperience: "የግብርና ልምድ",
+      yearsExperience: "የልምድ ዓመታት",
+      mainGoal: "ዋና ግብ",
+      crop: "ቢያንስ አንድ ሰብል",
+    },
+  },
+};
 
 function SelectField({ id, value, onChange, children }) {
   return (
@@ -40,20 +107,21 @@ function SelectField({ id, value, onChange, children }) {
   );
 }
 
-function errorMessageFrom(error) {
+function errorMessageFrom(error, fallback) {
   const detail = error?.response?.data?.detail;
   if (typeof detail === "string") return detail;
   if (Array.isArray(detail)) {
     const msgs = detail.map((d) => d?.msg).filter(Boolean);
     if (msgs.length) return msgs.join(", ");
   }
-  return error?.message || "Failed to complete onboarding. Please try again.";
+  return error?.message || fallback;
 }
 
 export default function OnboardingFarmingPage() {
   const navigate = useNavigate();
   const { accessToken, isHydrated } = useAuth();
-  const { language } = useLanguage();
+  const { language, setLanguage } = useLanguage();
+  const copy = COPY[language] || COPY.en;
 
   const [isLoading, setIsLoading] = useState(false);
   const [isPrefilling, setIsPrefilling] = useState(true);
@@ -142,16 +210,16 @@ export default function OnboardingFarmingPage() {
 
   async function handleSubmit() {
     const missingFields = [];
-    if (!formData.full_name.trim()) missingFields.push("account name");
-    if (!locationString.trim()) missingFields.push("location");
-    if (!formData.preferred_language.trim()) missingFields.push("preferred language");
-    if (!formData.user_type) missingFields.push("farming experience");
-    if (!formData.years_experience.trim()) missingFields.push("years of experience");
-    if (!formData.main_goal) missingFields.push("main goal");
-    if (formData.crops_grown.length < 1) missingFields.push("at least one crop");
+    if (!formData.full_name.trim()) missingFields.push(copy.missing.accountName);
+    if (!locationString.trim()) missingFields.push(copy.missing.location);
+    if (!formData.preferred_language.trim()) missingFields.push(copy.missing.preferredLanguage);
+    if (!formData.user_type) missingFields.push(copy.missing.farmingExperience);
+    if (!formData.years_experience.trim()) missingFields.push(copy.missing.yearsExperience);
+    if (!formData.main_goal) missingFields.push(copy.missing.mainGoal);
+    if (formData.crops_grown.length < 1) missingFields.push(copy.missing.crop);
 
     if (missingFields.length > 0 || !formIsValid) {
-      setError(`Please complete: ${missingFields.join(", ")}.`);
+      setError(`${copy.missingPrefix}: ${missingFields.join(", ")}.`);
       return;
     }
 
@@ -174,7 +242,7 @@ export default function OnboardingFarmingPage() {
       sessionStorage.removeItem("farmly_onboarding_language");
       navigate("/main-page");
     } catch (submitError) {
-      setError(errorMessageFrom(submitError));
+      setError(errorMessageFrom(submitError, copy.fallbackError));
     } finally {
       setIsLoading(false);
     }
@@ -189,81 +257,85 @@ export default function OnboardingFarmingPage() {
           <div className="mx-auto mb-3 flex h-16 w-16 items-center justify-center rounded-full bg-green-500 sm:h-20 sm:w-20">
             <User className="h-8 w-8 text-white sm:h-10 sm:w-10" />
           </div>
-          <h1 className="text-2xl font-bold text-green-800 sm:text-3xl">Tell Us About Your Farming</h1>
+          <h1 className="text-2xl font-bold text-green-800 sm:text-3xl">{copy.title}</h1>
           <p className="mt-2 text-sm text-green-700 sm:text-base">
-            This helps us personalize recommendations for you.
+            {copy.subtitle}
           </p>
         </div>
 
         <Card className="rounded-2xl border-2 border-green-100 shadow-lg">
           <CardContent className="space-y-4 p-5 sm:p-6">
             <div className="space-y-2">
-              <Label htmlFor="preferred_language">Preferred Language</Label>
+              <Label htmlFor="preferred_language">{copy.preferredLanguage}</Label>
               <SelectField
                 id="preferred_language"
                 value={formData.preferred_language}
-                onChange={(value) => setFormData((prev) => ({ ...prev, preferred_language: value }))}
+                onChange={(value) => {
+                  setFormData((prev) => ({ ...prev, preferred_language: value }));
+                  setLanguage(value);
+                  sessionStorage.setItem("farmly_onboarding_language", value);
+                }}
               >
-                <option value="en">English</option>
-                <option value="am">Amharic</option>
+                <option value="en">{copy.english}</option>
+                <option value="am">{copy.amharic}</option>
               </SelectField>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="user_type">Farming Experience</Label>
+              <Label htmlFor="user_type">{copy.farmingExperience}</Label>
               <SelectField
                 id="user_type"
                 value={formData.user_type}
                 onChange={(value) => setFormData((prev) => ({ ...prev, user_type: value }))}
               >
-                <option value="">Farming Experience</option>
+                <option value="">{copy.farmingExperiencePlaceholder}</option>
                 {USER_TYPE_OPTIONS.map((item) => (
                   <option key={item.value} value={item.value}>
-                    {item.label}
+                    {item.label[language] || item.label.en}
                   </option>
                 ))}
               </SelectField>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="years_experience">Years of Experience</Label>
+              <Label htmlFor="years_experience">{copy.yearsExperience}</Label>
               <SelectField
                 id="years_experience"
                 value={formData.years_experience}
                 onChange={(value) => setFormData((prev) => ({ ...prev, years_experience: value }))}
               >
-                <option value="">Please select years of experience</option>
+                <option value="">{copy.yearsPlaceholder}</option>
                 {[0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 15, 20, 25, 30].map((years) => (
                   <option key={years} value={String(years)}>
-                    {years} {years === 1 ? "year" : "years"}
+                    {years} {years === 1 ? copy.year : copy.years}
                   </option>
                 ))}
               </SelectField>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="main_goal">Main Goal</Label>
+              <Label htmlFor="main_goal">{copy.mainGoal}</Label>
               <SelectField
                 id="main_goal"
                 value={formData.main_goal}
                 onChange={(value) => setFormData((prev) => ({ ...prev, main_goal: value }))}
               >
-                <option value="">Main Goal</option>
+                <option value="">{copy.mainGoalPlaceholder}</option>
                 {MAIN_GOAL_OPTIONS.map((item) => (
                   <option key={item.value} value={item.value}>
-                    {item.label}
+                    {item.label[language] || item.label.en}
                   </option>
                 ))}
               </SelectField>
             </div>
 
             <div className="space-y-3">
-              <Label>Crops Grown</Label>
+              <Label>{copy.cropsGrown}</Label>
               <div className="flex gap-2">
                 <Input
                   value={cropInput}
                   onChange={(e) => setCropInput(e.target.value)}
-                  placeholder="Add crop (example: maize)"
+                  placeholder={copy.cropPlaceholder}
                   onKeyDown={(e) => {
                     if (e.key === "Enter") {
                       e.preventDefault();
@@ -294,7 +366,7 @@ export default function OnboardingFarmingPage() {
                   ))}
                 </div>
               ) : (
-                <p className="text-xs text-muted">Add at least one crop.</p>
+                <p className="text-xs text-muted">{copy.addAtLeastOneCrop}</p>
               )}
             </div>
 
@@ -312,7 +384,7 @@ export default function OnboardingFarmingPage() {
                 className="h-12 rounded-2xl border-green-200 bg-white text-base font-semibold text-green-700 transition-all duration-200 hover:-translate-y-0.5 hover:bg-green-50"
               >
                 <ArrowLeft className="mr-2 h-4 w-4" />
-                Back
+                {copy.back}
               </Button>
               <Button
                 type="button"
@@ -320,7 +392,7 @@ export default function OnboardingFarmingPage() {
                 disabled={isLoading}
                 className="h-12 rounded-2xl bg-green-500 px-5 text-base font-semibold text-white transition-all duration-200 hover:-translate-y-0.5 hover:bg-green-600"
               >
-                {isLoading ? "Saving..." : "Complete Onboarding"}
+                {isLoading ? copy.saving : copy.complete}
                 <ArrowRight className="ml-2 h-4 w-4" />
               </Button>
             </div>

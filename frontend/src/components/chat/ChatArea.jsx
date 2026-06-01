@@ -9,6 +9,7 @@ const COPY = {
   en: {
     title: "Farmly Assistant",
     devMode: "Dev Mode",
+    responseLanguage: "Response language",
     welcomeTitle: "Welcome to Farmly",
     welcomeSubtitle: "Your personal agricultural assistant. Ask me anything or choose an option below.",
     quickActions: [
@@ -21,6 +22,7 @@ const COPY = {
   am: {
     title: "Farmly ረዳት",
     devMode: "Dev Mode",
+    responseLanguage: "የመልስ ቋንቋ",
     welcomeTitle: "ወደ Farmly እንኳን በደህና መጡ",
     welcomeSubtitle: "የግብርና ጥያቄዎን በጽሑፍ፣ በድምጽ ወይም በምስል ይጠይቁ።",
     quickActions: [
@@ -73,7 +75,7 @@ export function ChatArea({
               value={language}
               onChange={(event) => setLanguage?.(event.target.value)}
               className="bg-transparent text-xs font-medium text-foreground outline-none"
-              aria-label="Response language"
+              aria-label={copy.responseLanguage}
             >
               {SUPPORTED_LANGUAGES.map((item) => (
                 <option key={item.code} value={item.code}>

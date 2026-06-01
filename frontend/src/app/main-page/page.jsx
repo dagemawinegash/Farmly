@@ -12,10 +12,28 @@ const DEBUG_ENABLED =
   String(import.meta.env.VITE_DEBUG || import.meta.env.NEXT_PUBLIC_DEBUG || "false").toLowerCase() ===
   "true";
 
+const COPY = {
+  en: {
+    voiceMessage: "Voice message",
+    imageDiagnosis: "Image Diagnosis",
+    transcribingVoice: "Transcribing voice...",
+    noTranscript: "Voice transcription returned no text.",
+    transcriptionFailed: "Voice transcription failed. Please try again.",
+  },
+  am: {
+    voiceMessage: "የድምጽ መልዕክት",
+    imageDiagnosis: "የምስል ምርመራ",
+    transcribingVoice: "ድምጽ በጽሑፍ በመቀየር ላይ...",
+    noTranscript: "የድምጽ መልዕክት ወደ ጽሑፍ አልተቀየረም።",
+    transcriptionFailed: "የድምጽ መልዕክት ወደ ጽሑፍ መቀየር አልተሳካም። እባክዎ እንደገና ይሞክሩ።",
+  },
+};
+
 export default function MainPage() {
   const navigate = useNavigate();
   const { accessToken, clearToken, isHydrated } = useAuth();
   const { language, setLanguage } = useLanguage();
+  const copy = COPY[language] || COPY.en;
 
   const [checkingOnboarding, setCheckingOnboarding] = useState(true);
   const [sessions, setSessions] = useState([]);
@@ -253,8 +271,8 @@ export default function MainPage() {
         const titleSnippet = outgoingText
           ? outgoingText.slice(0, 30)
           : audio
-            ? "Voice message"
-            : "Image Diagnosis";
+            ? copy.voiceMessage
+            : copy.imageDiagnosis;
         const res = await chatApi.createSession(titleSnippet);
         sessionId = res.data.session_id;
         wasNewSession = true;
@@ -266,13 +284,13 @@ export default function MainPage() {
       if (audio) {
         tempMessageId = addTempUserMessage(
           sessionId,
-          language === "am" ? "ድምጽ በጽሑፍ በመቀየር ላይ..." : "Transcribing voice...",
+          copy.transcribingVoice,
           imagePreviewUrl ? { image_preview_url: imagePreviewUrl } : {}
         );
         const { data } = await voiceApi.transcribe(audio, voiceLanguageCode);
         outgoingText = data?.transcript?.trim() || "";
         if (!outgoingText) {
-          throw new Error("Voice transcription returned no text.");
+          throw new Error(copy.noTranscript);
         }
         updateTempUserMessage(tempMessageId, outgoingText);
       } else if (image) {
@@ -313,9 +331,7 @@ export default function MainPage() {
       if (tempMessageId) {
         updateTempUserMessage(
           tempMessageId,
-          language === "am"
-            ? "የድምጽ መልዕክት ወደ ጽሑፍ መቀየር አልተሳካም። እባክዎ እንደገና ይሞክሩ።"
-            : "Voice transcription failed. Please try again."
+          copy.transcriptionFailed
         );
       }
     } finally {

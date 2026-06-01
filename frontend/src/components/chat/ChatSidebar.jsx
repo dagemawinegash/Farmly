@@ -2,12 +2,34 @@ import { useState } from "react";
 import { Link } from "react-router-dom";
 import { Plus, MessageSquare, X, Pencil, Trash2, Check, Settings, Bell } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { clsx } from "clsx";
 import { twMerge } from "tailwind-merge";
 
 function cn(...inputs) {
   return twMerge(clsx(inputs));
 }
+
+const COPY = {
+  en: {
+    newChat: "New Chat",
+    deleteConfirm: "Are you sure you want to delete this chat?",
+    rename: "Rename",
+    delete: "Delete",
+    noChats: "No previous chats.",
+    alerts: "Alerts",
+    settings: "Settings",
+  },
+  am: {
+    newChat: "አዲስ ውይይት",
+    deleteConfirm: "ይህን ውይይት ማጥፋት ይፈልጋሉ?",
+    rename: "ስም ቀይር",
+    delete: "አጥፋ",
+    noChats: "ቀደም ያሉ ውይይቶች የሉም።",
+    alerts: "አስጠንቅቂያዎች",
+    settings: "ቅንብሮች",
+  },
+};
 
 export function ChatSidebar({
   sessions,
@@ -19,13 +41,15 @@ export function ChatSidebar({
   isOpen,
   setIsOpen,
 }) {
+  const { language } = useLanguage();
+  const copy = COPY[language] || COPY.en;
   const [editingId, setEditingId] = useState(null);
   const [editTitle, setEditTitle] = useState("");
 
   const startEditing = (e, session) => {
     e.stopPropagation();
     setEditingId(session.session_id);
-    setEditTitle(session.title || "New Chat");
+    setEditTitle(session.title || copy.newChat);
   };
 
   const saveEdit = (e, sessionId) => {
@@ -43,7 +67,7 @@ export function ChatSidebar({
 
   const handleDelete = (e, sessionId) => {
     e.stopPropagation();
-    if (confirm("Are you sure you want to delete this chat?")) {
+    if (confirm(copy.deleteConfirm)) {
       onDeleteSession?.(sessionId);
     }
   };
@@ -68,7 +92,7 @@ export function ChatSidebar({
         <div className="flex items-center justify-between p-4 border-b border-border">
           <Button onClick={onNewSession} className="w-full justify-start gap-2">
             <Plus className="h-4 w-4" />
-            New Chat
+            {copy.newChat}
           </Button>
           <Button 
             variant="ghost" 
@@ -127,7 +151,7 @@ export function ChatSidebar({
                   ) : (
                     <>
                       <span className="truncate flex-1 text-left">
-                        {session.title || "New Chat"}
+                        {session.title || copy.newChat}
                       </span>
                       
                       <div className={cn(
@@ -137,14 +161,14 @@ export function ChatSidebar({
                         <button 
                           onClick={(e) => startEditing(e, session)}
                           className="p-1 text-muted-foreground hover:text-primary transition-colors"
-                          title="Rename"
+                          title={copy.rename}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button 
                           onClick={(e) => handleDelete(e, session.session_id)}
                           className="p-1 text-muted-foreground hover:text-destructive transition-colors"
-                          title="Delete"
+                          title={copy.delete}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -157,7 +181,7 @@ export function ChatSidebar({
             
             {sessions.length === 0 && (
               <p className="text-xs text-center text-muted-foreground mt-4">
-                No previous chats.
+                {copy.noChats}
               </p>
             )}
           </div>
@@ -171,7 +195,7 @@ export function ChatSidebar({
               className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Bell className="h-4 w-4" />
-              Alerts
+              {copy.alerts}
             </Link>
             <Link
               to="/settings"
@@ -179,7 +203,7 @@ export function ChatSidebar({
               className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
-              Settings
+              {copy.settings}
             </Link>
           </div>
         </div>

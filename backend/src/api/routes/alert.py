@@ -68,6 +68,7 @@ def list_alerts(
     status_code=status.HTTP_201_CREATED,
 )
 def generate_weather_alerts(
+    language_code: str | None = Query(default=None, min_length=2, max_length=20),
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> WeatherAlertGenerateResponse:
@@ -76,7 +77,7 @@ def generate_weather_alerts(
         raise HTTPException(status_code=404, detail="Profile not found. Complete onboarding first.")
 
     try:
-        location_used, raw_weather, alert_payloads = build_weather_alerts(profile)
+        location_used, raw_weather, alert_payloads = build_weather_alerts(profile, language_code=language_code)
     except ValueError as exc:
         raise HTTPException(status_code=400, detail=str(exc))
     except Exception as exc:

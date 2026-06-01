@@ -18,25 +18,121 @@ import { accountApi } from "@/lib/account";
 import { extractErrorMessage } from "@/lib/errors";
 import { profileApi } from "@/lib/profile";
 import { useAuth } from "@/contexts/AuthContext";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 
 const USER_TYPE_OPTIONS = [
-  { value: "aspiring", label: "Aspiring farmer" },
-  { value: "beginner", label: "Beginner farmer" },
-  { value: "experienced", label: "Experienced farmer" },
-  { value: "explorer", label: "Explorer" },
+  { value: "aspiring", label: { en: "Aspiring farmer", am: "ገበሬ መሆን የሚፈልግ" } },
+  { value: "beginner", label: { en: "Beginner farmer", am: "ጀማሪ ገበሬ" } },
+  { value: "experienced", label: { en: "Experienced farmer", am: "ልምድ ያለው ገበሬ" } },
+  { value: "explorer", label: { en: "Explorer", am: "ለመማር የሚፈልግ" } },
 ];
 
 const MAIN_GOAL_OPTIONS = [
-  { value: "increase_yield", label: "Increase crop yield" },
-  { value: "reduce_costs", label: "Reduce farming costs" },
-  { value: "sustainable_farming", label: "Sustainable farming" },
-  { value: "organic_farming", label: "Organic farming" },
-  { value: "market_access", label: "Better market access" },
+  { value: "increase_yield", label: { en: "Increase crop yield", am: "የሰብል ምርት መጨመር" } },
+  { value: "reduce_costs", label: { en: "Reduce farming costs", am: "የእርሻ ወጪ መቀነስ" } },
+  { value: "sustainable_farming", label: { en: "Sustainable farming", am: "ዘላቂ ግብርና" } },
+  { value: "organic_farming", label: { en: "Organic farming", am: "ኦርጋኒክ ግብርና" } },
+  { value: "market_access", label: { en: "Better market access", am: "የተሻለ የገበያ መዳረሻ" } },
 ];
+
+const COPY = {
+  en: {
+    chat: "Chat",
+    signOut: "Sign out",
+    title: "Settings",
+    subtitle: "Manage the farming profile Farmly uses for advice.",
+    farmingProfile: "Farming Profile",
+    fullName: "Full Name",
+    phoneNumber: "Phone Number",
+    location: "Location",
+    locationPlaceholder: "Example: 9.03,38.74",
+    language: "Language",
+    english: "English",
+    amharic: "Amharic",
+    experience: "Experience",
+    years: "Years",
+    mainGoal: "Main Goal",
+    cropsGrown: "Crops Grown",
+    addCrop: "Add crop",
+    removeCrop: (crop) => `Remove ${crop}`,
+    saveProfile: "Save profile",
+    savingProfile: "Saving profile...",
+    phoneChange: "Phone Change",
+    currentPassword: "Current Password",
+    newPhoneNumber: "New Phone Number",
+    phonePlaceholder: "0911xxxxxx or 2519xxxxxxxx",
+    otpCode: "OTP Code",
+    debugOtp: "Debug OTP",
+    requestOtp: "Request OTP",
+    confirmChange: "Confirm change",
+    cancel: "Cancel",
+    dangerZone: "Danger Zone",
+    dangerText:
+      "Delete your Farmly account permanently. This removes your profile, chats, messages, alerts, and account access. This action cannot be undone.",
+    deleteAccount: "Delete account",
+    deleteConfirm: "This will permanently delete your Farmly account and all related data. Continue?",
+    loadProfileError: "Could not load profile.",
+    profileInvalid: "Please complete all profile fields and keep at least one crop.",
+    profileSaved: "Profile updated successfully.",
+    profileSaveError: "Could not update profile.",
+    phoneOtpSent: "OTP sent to the new phone number.",
+    phoneOtpSentDebug: (otp) => `OTP sent. Debug OTP: ${otp}`,
+    phoneRequestError: "Could not request phone change.",
+    phoneChanged: "Phone number changed successfully.",
+    phoneConfirmError: "Could not confirm phone change.",
+    deleteError: "Could not delete account.",
+  },
+  am: {
+    chat: "ውይይት",
+    signOut: "ውጣ",
+    title: "ቅንብሮች",
+    subtitle: "Farmly ለምክር የሚጠቀምበትን የእርሻ መገለጫ ያስተዳድሩ።",
+    farmingProfile: "የእርሻ መገለጫ",
+    fullName: "ሙሉ ስም",
+    phoneNumber: "ስልክ ቁጥር",
+    location: "ቦታ",
+    locationPlaceholder: "ምሳሌ፦ 9.03,38.74",
+    language: "ቋንቋ",
+    english: "እንግሊዝኛ",
+    amharic: "አማርኛ",
+    experience: "ልምድ",
+    years: "ዓመታት",
+    mainGoal: "ዋና ግብ",
+    cropsGrown: "የሚያበቅሏቸው ሰብሎች",
+    addCrop: "ሰብል ያክሉ",
+    removeCrop: (crop) => `${crop} አስወግድ`,
+    saveProfile: "መገለጫ አስቀምጥ",
+    savingProfile: "መገለጫ በማስቀመጥ ላይ...",
+    phoneChange: "ስልክ ቁጥር መቀየር",
+    currentPassword: "የአሁኑ የይለፍ ቃል",
+    newPhoneNumber: "አዲስ ስልክ ቁጥር",
+    phonePlaceholder: "0911xxxxxx ወይም 2519xxxxxxxx",
+    otpCode: "የOTP ኮድ",
+    debugOtp: "የሙከራ OTP",
+    requestOtp: "OTP ጠይቅ",
+    confirmChange: "ለውጡን አረጋግጥ",
+    cancel: "ሰርዝ",
+    dangerZone: "አደገኛ ክፍል",
+    dangerText:
+      "የFarmly መለያዎን በቋሚነት ያጠፋል። መገለጫ፣ ውይይቶች፣ መልዕክቶች፣ አስጠንቅቂያዎች እና የመለያ መዳረሻ ይጠፋሉ። ይህ ተግባር መመለስ አይቻልም።",
+    deleteAccount: "መለያ አጥፋ",
+    deleteConfirm: "የFarmly መለያዎን እና ሁሉንም ተዛማጅ መረጃ በቋሚነት ያጠፋል። መቀጠል ይፈልጋሉ?",
+    loadProfileError: "መገለጫ መጫን አልተቻለም።",
+    profileInvalid: "እባክዎ ሁሉንም የመገለጫ መስኮች ይሙሉ እና ቢያንስ አንድ ሰብል ያስቀምጡ።",
+    profileSaved: "መገለጫ ተዘምኗል።",
+    profileSaveError: "መገለጫ ማዘመን አልተቻለም።",
+    phoneOtpSent: "OTP ወደ አዲሱ ስልክ ቁጥር ተልኳል።",
+    phoneOtpSentDebug: (otp) => `OTP ተልኳል። የሙከራ OTP: ${otp}`,
+    phoneRequestError: "ስልክ ቁጥር መቀየር መጠየቅ አልተቻለም።",
+    phoneChanged: "ስልክ ቁጥሩ ተቀይሯል።",
+    phoneConfirmError: "ስልክ ቁጥር መቀየር ማረጋገጥ አልተቻለም።",
+    deleteError: "መለያ ማጥፋት አልተቻለም።",
+  },
+};
 
 const initialProfileForm = {
   full_name: "",
@@ -74,6 +170,8 @@ function StatusMessage({ type, children }) {
 export default function SettingsPage() {
   const navigate = useNavigate();
   const { accessToken, clearToken, isHydrated } = useAuth();
+  const { language, setLanguage } = useLanguage();
+  const copy = COPY[language] || COPY.en;
   const [loading, setLoading] = useState(true);
   const [savingProfile, setSavingProfile] = useState(false);
   const [profileError, setProfileError] = useState("");
@@ -124,7 +222,7 @@ export default function SettingsPage() {
         crops_grown: Array.isArray(data.crops_grown) ? data.crops_grown : [],
       });
     } catch (error) {
-      setProfileError(extractErrorMessage(error, "Could not load profile."));
+      setProfileError(extractErrorMessage(error, copy.loadProfileError));
     } finally {
       setLoading(false);
     }
@@ -162,7 +260,7 @@ export default function SettingsPage() {
 
   async function handleProfileSave() {
     if (!profileIsValid) {
-      setProfileError("Please complete all profile fields and keep at least one crop.");
+      setProfileError(copy.profileInvalid);
       return;
     }
 
@@ -180,9 +278,9 @@ export default function SettingsPage() {
         crops_grown: profileForm.crops_grown,
       };
       await profileApi.updateProfile(payload);
-      setProfileSuccess("Profile updated successfully.");
+      setProfileSuccess(copy.profileSaved);
     } catch (error) {
-      setProfileError(extractErrorMessage(error, "Could not update profile."));
+      setProfileError(extractErrorMessage(error, copy.profileSaveError));
     } finally {
       setSavingProfile(false);
     }
@@ -197,13 +295,9 @@ export default function SettingsPage() {
       const { data } = await accountApi.requestPhoneChange(phoneChange);
       setPhoneRequestSent(true);
       setPhoneDebugOtp(data.debug_otp || null);
-      setPhoneSuccess(
-        data.debug_otp
-          ? `OTP sent. Debug OTP: ${data.debug_otp}`
-          : "OTP sent to the new phone number."
-      );
+      setPhoneSuccess(data.debug_otp ? copy.phoneOtpSentDebug(data.debug_otp) : copy.phoneOtpSent);
     } catch (error) {
-      setPhoneError(extractErrorMessage(error, "Could not request phone change."));
+      setPhoneError(extractErrorMessage(error, copy.phoneRequestError));
     } finally {
       setPhoneLoading(false);
     }
@@ -216,13 +310,13 @@ export default function SettingsPage() {
     try {
       const { data } = await accountApi.confirmPhoneChange(phoneChange);
       setPhoneNumber(data.phone_number);
-      setPhoneSuccess("Phone number changed successfully.");
+      setPhoneSuccess(copy.phoneChanged);
       setPhoneRequestSent(false);
       setPhoneDebugOtp(null);
       setPhoneChange({ current_password: "", new_phone_number: "", otp_code: "" });
       await loadProfile();
     } catch (error) {
-      setPhoneError(extractErrorMessage(error, "Could not confirm phone change."));
+      setPhoneError(extractErrorMessage(error, copy.phoneConfirmError));
     } finally {
       setPhoneLoading(false);
     }
@@ -234,7 +328,7 @@ export default function SettingsPage() {
   }
 
   async function handleDeleteAccount() {
-    if (!confirm("This will permanently delete your Farmly account and all related data. Continue?")) {
+    if (!confirm(copy.deleteConfirm)) {
       return;
     }
 
@@ -247,7 +341,7 @@ export default function SettingsPage() {
       clearToken();
       navigate("/", { replace: true });
     } catch (error) {
-      setDeleteError(extractErrorMessage(error, "Could not delete account."));
+      setDeleteError(extractErrorMessage(error, copy.deleteError));
     } finally {
       setDeleteLoading(false);
     }
@@ -267,11 +361,11 @@ export default function SettingsPage() {
         <div className="mx-auto flex max-w-5xl items-center justify-between px-4 py-4 sm:px-6">
           <Link to="/main-page" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
-            Chat
+            {copy.chat}
           </Link>
           <Button variant="ghost" onClick={handleSignOut} className="gap-2 text-red-600 hover:text-red-700">
             <LogOut className="h-4 w-4" />
-            Sign out
+            {copy.signOut}
           </Button>
         </div>
       </header>
@@ -279,21 +373,21 @@ export default function SettingsPage() {
       <div className="mx-auto grid max-w-5xl gap-5 px-4 py-6 sm:px-6 lg:grid-cols-[1.4fr_1fr]">
         <section className="space-y-5">
           <div>
-            <h1 className="text-2xl font-bold text-foreground">Settings</h1>
-            <p className="mt-1 text-sm text-muted-foreground">Manage the farming profile Farmly uses for advice.</p>
+            <h1 className="text-2xl font-bold text-foreground">{copy.title}</h1>
+            <p className="mt-1 text-sm text-muted-foreground">{copy.subtitle}</p>
           </div>
 
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <Leaf className="h-5 w-5 text-primary" />
-                Farming Profile
+                {copy.farmingProfile}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-4 sm:grid-cols-2">
                 <div>
-                  <Label htmlFor="full_name">Full Name</Label>
+                  <Label htmlFor="full_name">{copy.fullName}</Label>
                   <Input
                     id="full_name"
                     value={profileForm.full_name}
@@ -301,35 +395,38 @@ export default function SettingsPage() {
                   />
                 </div>
                 <div>
-                  <Label htmlFor="phone_number">Phone Number</Label>
+                  <Label htmlFor="phone_number">{copy.phoneNumber}</Label>
                   <Input id="phone_number" value={phoneNumber} disabled className="bg-gray-50 text-muted-foreground" />
                 </div>
               </div>
 
               <div>
-                <Label htmlFor="location">Location</Label>
+                <Label htmlFor="location">{copy.location}</Label>
                 <Input
                   id="location"
                   value={profileForm.location}
-                  placeholder="Example: 9.03,38.74"
+                  placeholder={copy.locationPlaceholder}
                   onChange={(event) => setProfileForm((previous) => ({ ...previous, location: event.target.value }))}
                 />
               </div>
 
               <div className="grid gap-4 sm:grid-cols-3">
                 <div>
-                  <Label htmlFor="preferred_language">Language</Label>
+                  <Label htmlFor="preferred_language">{copy.language}</Label>
                   <SelectField
                     id="preferred_language"
                     value={profileForm.preferred_language}
-                    onChange={(value) => setProfileForm((previous) => ({ ...previous, preferred_language: value }))}
+                    onChange={(value) => {
+                      setProfileForm((previous) => ({ ...previous, preferred_language: value }));
+                      setLanguage(value);
+                    }}
                   >
-                    <option value="en">English</option>
-                    <option value="am">Amharic</option>
+                    <option value="en">{copy.english}</option>
+                    <option value="am">{copy.amharic}</option>
                   </SelectField>
                 </div>
                 <div>
-                  <Label htmlFor="user_type">Experience</Label>
+                  <Label htmlFor="user_type">{copy.experience}</Label>
                   <SelectField
                     id="user_type"
                     value={profileForm.user_type}
@@ -337,13 +434,13 @@ export default function SettingsPage() {
                   >
                     {USER_TYPE_OPTIONS.map((item) => (
                       <option key={item.value} value={item.value}>
-                        {item.label}
+                        {item.label[language] || item.label.en}
                       </option>
                     ))}
                   </SelectField>
                 </div>
                 <div>
-                  <Label htmlFor="years_experience">Years</Label>
+                  <Label htmlFor="years_experience">{copy.years}</Label>
                   <Input
                     id="years_experience"
                     type="number"
@@ -356,7 +453,7 @@ export default function SettingsPage() {
               </div>
 
               <div>
-                <Label htmlFor="main_goal">Main Goal</Label>
+                <Label htmlFor="main_goal">{copy.mainGoal}</Label>
                 <SelectField
                   id="main_goal"
                   value={profileForm.main_goal}
@@ -364,19 +461,19 @@ export default function SettingsPage() {
                 >
                   {MAIN_GOAL_OPTIONS.map((item) => (
                     <option key={item.value} value={item.value}>
-                      {item.label}
+                      {item.label[language] || item.label.en}
                     </option>
                   ))}
                 </SelectField>
               </div>
 
               <div className="space-y-3">
-                <Label htmlFor="crop_input">Crops Grown</Label>
+                <Label htmlFor="crop_input">{copy.cropsGrown}</Label>
                 <div className="flex gap-2">
                   <Input
                     id="crop_input"
                     value={cropInput}
-                    placeholder="Add crop"
+                    placeholder={copy.addCrop}
                     onChange={(event) => setCropInput(event.target.value)}
                     onKeyDown={(event) => {
                       if (event.key === "Enter") {
@@ -385,7 +482,7 @@ export default function SettingsPage() {
                       }
                     }}
                   />
-                  <Button onClick={addCrop} size="icon" aria-label="Add crop">
+                  <Button onClick={addCrop} size="icon" aria-label={copy.addCrop}>
                     <Plus className="h-4 w-4" />
                   </Button>
                 </div>
@@ -393,7 +490,7 @@ export default function SettingsPage() {
                   {profileForm.crops_grown.map((crop) => (
                     <span key={crop} className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-sm text-green-800">
                       {crop}
-                      <button type="button" onClick={() => removeCrop(crop)} aria-label={`Remove ${crop}`}>
+                      <button type="button" onClick={() => removeCrop(crop)} aria-label={copy.removeCrop(crop)}>
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </span>
@@ -406,7 +503,7 @@ export default function SettingsPage() {
 
               <Button onClick={handleProfileSave} disabled={savingProfile || !profileIsValid} className="w-full gap-2 sm:w-auto">
                 {savingProfile ? <Loader2 className="h-4 w-4 animate-spin" /> : <Save className="h-4 w-4" />}
-                Save profile
+                {savingProfile ? copy.savingProfile : copy.saveProfile}
               </Button>
             </CardContent>
           </Card>
@@ -417,12 +514,12 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2">
                 <ShieldCheck className="h-5 w-5 text-primary" />
-                Phone Change
+                {copy.phoneChange}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <div>
-                <Label htmlFor="current_password">Current Password</Label>
+                <Label htmlFor="current_password">{copy.currentPassword}</Label>
                 <Input
                   id="current_password"
                   type="password"
@@ -431,17 +528,17 @@ export default function SettingsPage() {
                 />
               </div>
               <div>
-                <Label htmlFor="new_phone_number">New Phone Number</Label>
+                <Label htmlFor="new_phone_number">{copy.newPhoneNumber}</Label>
                 <Input
                   id="new_phone_number"
-                  placeholder="0911xxxxxx or 2519xxxxxxxx"
+                  placeholder={copy.phonePlaceholder}
                   value={phoneChange.new_phone_number}
                   onChange={(event) => setPhoneChange((previous) => ({ ...previous, new_phone_number: event.target.value }))}
                 />
               </div>
               {phoneRequestSent && (
                 <div>
-                  <Label htmlFor="otp_code">OTP Code</Label>
+                  <Label htmlFor="otp_code">{copy.otpCode}</Label>
                   <Input
                     id="otp_code"
                     value={phoneChange.otp_code}
@@ -452,7 +549,7 @@ export default function SettingsPage() {
 
               {phoneDebugOtp && (
                 <div className="rounded-[var(--radius)] border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800">
-                  Debug OTP: <span className="font-semibold">{phoneDebugOtp}</span>
+                  {copy.debugOtp}: <span className="font-semibold">{phoneDebugOtp}</span>
                 </div>
               )}
 
@@ -466,7 +563,7 @@ export default function SettingsPage() {
                   className="w-full gap-2"
                 >
                   {phoneLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <KeyRound className="h-4 w-4" />}
-                  Request OTP
+                  {copy.requestOtp}
                 </Button>
               ) : (
                 <div className="grid gap-2">
@@ -476,7 +573,7 @@ export default function SettingsPage() {
                     className="w-full gap-2"
                   >
                     {phoneLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <CheckCircle className="h-4 w-4" />}
-                    Confirm change
+                    {copy.confirmChange}
                   </Button>
                   <Button
                     variant="outline"
@@ -489,7 +586,7 @@ export default function SettingsPage() {
                     className="w-full gap-2"
                   >
                     <Trash2 className="h-4 w-4" />
-                    Cancel
+                    {copy.cancel}
                   </Button>
                 </div>
               )}
@@ -500,17 +597,16 @@ export default function SettingsPage() {
             <CardHeader>
               <CardTitle className="flex items-center gap-2 text-red-700">
                 <AlertTriangle className="h-5 w-5" />
-                Danger Zone
+                {copy.dangerZone}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
               <p className="text-sm leading-6 text-red-700">
-                Delete your Farmly account permanently. This removes your profile, chats, messages, alerts,
-                and account access. This action cannot be undone.
+                {copy.dangerText}
               </p>
 
               <div>
-                <Label htmlFor="delete_current_password">Current Password</Label>
+                <Label htmlFor="delete_current_password">{copy.currentPassword}</Label>
                 <Input
                   id="delete_current_password"
                   type="password"
@@ -536,7 +632,7 @@ export default function SettingsPage() {
                 className="w-full gap-2 border-red-300 bg-white text-red-700 hover:bg-red-100"
               >
                 {deleteLoading ? <Loader2 className="h-4 w-4 animate-spin" /> : <Trash2 className="h-4 w-4" />}
-                Delete account
+                {copy.deleteAccount}
               </Button>
             </CardContent>
           </Card>
