@@ -1,9 +1,11 @@
 import httpx
+import logging
 
 from src.config.settings import get_settings
 
 
 settings = get_settings()
+logger = logging.getLogger("uvicorn.error")
 
 
 def _extract_similar_images(items: list[dict] | None) -> list[dict]:
@@ -46,6 +48,8 @@ def _simplify_kindwise_response(data: dict) -> dict:
 
     disease_suggestions.sort(key=lambda x: x.get("probability") or 0, reverse=True)
     crop_suggestions.sort(key=lambda x: x.get("probability") or 0, reverse=True)
+    if not is_plant and (crop_suggestions or disease_suggestions):
+        is_plant = True
 
     return {
         "is_plant": is_plant,
@@ -77,5 +81,12 @@ def diagnose_with_kindwise(image_bytes: bytes, latitude: float = 9.03, longitude
     if isinstance(payload, dict) and payload.get("error"):
         raise RuntimeError(f"Kindwise provider error: {payload.get('error')}")
 
-    return _simplify_kindwise_response(payload)
+    result = _simplify_kindwise_response(payload)
+    logger.info(
+        "Kindwise:crop_health response is_plant=%s crops=%s diseases=%s",
+        result["is_plant"],
+        len(result["crops"]),
+        len(result["diseases"]),
+    )
+    return result
 

@@ -8,10 +8,6 @@ import { voiceApi } from "@/lib/voice";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
 import { ChatArea } from "@/components/chat/ChatArea";
 
-const DEBUG_ENABLED =
-  String(import.meta.env.VITE_DEBUG || import.meta.env.NEXT_PUBLIC_DEBUG || "false").toLowerCase() ===
-  "true";
-
 const COPY = {
   en: {
     voiceMessage: "Voice message",
@@ -45,7 +41,6 @@ export default function MainPage() {
   const [messages, setMessages] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const [isDevMode, setIsDevMode] = useState(DEBUG_ENABLED);
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
   const audioElementRef = useRef(null);
   const audioUrlRef = useRef(null);
@@ -308,27 +303,30 @@ export default function MainPage() {
       }
 
       const res = await chatApi.sendMessage(sessionId, outgoingText, image, null, voiceLanguageCode);
-      const { user_message, assistant_message, chosen_route } = res.data;
+      const { user_message, assistant_message } = res.data;
       const userMessage = imagePreviewUrl
         ? { ...user_message, image_preview_url: imagePreviewUrl }
         : user_message;
-
-      if (chosen_route) {
-        assistant_message.chosen_route = chosen_route;
-      }
 
       setMessages((prev) => {
         const filtered = prev.filter((m) => !String(m.message_id).startsWith("temp-"));
         return [...filtered, userMessage, assistant_message];
       });
 
-      if (wasNewSession && userMessage?.content) {
-        await autoTitleFromFirstMessage(sessionId, userMessage.content);
-      }
+      const refreshSessionList = async () => {
+        if (wasNewSession && userMessage?.content) {
+          await autoTitleFromFirstMessage(sessionId, userMessage.content);
+        }
+        await fetchSessions({ syncMessages: false });
+      };
+      refreshSessionList().catch((err) => {
+        console.error("Failed to refresh sessions after message", err);
+      });
 
-      await fetchSessions({ syncMessages: false });
       if (audio && assistant_message?.content) {
-        playAssistantAudio(assistant_message);
+        window.setTimeout(() => {
+          playAssistantAudio(assistant_message);
+        }, 0);
       }
     } catch (err) {
       console.error("Failed to send message", err);
@@ -367,8 +365,6 @@ export default function MainPage() {
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
         onOpenSidebar={() => setIsSidebarOpen(true)}
-        isDevMode={isDevMode}
-        setIsDevMode={setIsDevMode}
         onSpeakMessage={playAssistantAudio}
         speakingMessageId={speakingMessageId}
         language={language}

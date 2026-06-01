@@ -1,3 +1,4 @@
+import asyncio
 import json
 import re
 
@@ -155,7 +156,7 @@ def _fallback_weather_text() -> str:
 
 def _fallback_diagnosis_advice(is_plant: bool, top_disease_name: str | None) -> str:
     if not is_plant:
-        return "The uploaded image does not appear to be a plant. Please upload a clear crop leaf image."
+        return "The uploaded image does not appear to be a plant. Please upload a clear crop photo."
     if top_disease_name:
         return (
             f"Possible issue detected: {top_disease_name}. "
@@ -167,10 +168,33 @@ def _fallback_diagnosis_advice(is_plant: bool, top_disease_name: str | None) -> 
     )
 
 
+def _crop_display_name(candidate: dict | None, default: str = "this crop") -> str:
+    if not candidate:
+        return default
+    return (
+        str(candidate.get("name") or "").strip()
+        or str(candidate.get("scientific_name") or "").strip()
+        or default
+    )
+
+
+def _fallback_crop_diagnosis_advice(crop_name: str, top_disease_name: str | None) -> str:
+    if top_disease_name:
+        return (
+            f"Your {crop_name} shows possible signs of {top_disease_name}. "
+            "Remove affected parts where practical, avoid overhead irrigation, "
+            "and monitor spread over the next 3 to 5 days."
+        )
+    return (
+        f"No clear disease was detected on your {crop_name} from this image. "
+        "Continue field monitoring and upload a closer image if symptoms worsen."
+    )
+
+
 def _uncertain_crop_advice() -> str:
     return (
         "Farmly can see that this may be a plant, but the crop is not clear enough to route diagnosis safely. "
-        "Please upload a closer, well-lit image of the crop leaf, stem, or head."
+        "Please upload a closer, well-lit image of the affected leaf, stem, head, fruit, grain, or visible pest."
     )
 
 
@@ -323,10 +347,18 @@ def _triage_crop_candidate(triage: dict) -> dict | None:
 
 
 def _unsupported_crop_advice(top_crop: dict | None) -> str:
-    crop_name = (top_crop or {}).get("name") or (top_crop or {}).get("scientific_name") or "this plant"
+    crop_name = _crop_display_name(top_crop, default="this plant")
     return (
         f"Farmly identified {crop_name}, but disease diagnosis is not available for that crop yet. "
         "Please upload a clear sorghum image or another supported crop image for disease diagnosis."
+    )
+
+
+def _unclear_crop_health_advice(top_crop: dict | None) -> str:
+    crop_name = _crop_display_name(top_crop)
+    return (
+        f"Farmly identified {crop_name}, but the disease scan could not read the crop health clearly from this photo. "
+        "Please upload a closer, well-lit image of the affected leaf, stem, head, fruit, grain, or visible pest."
     )
 
 
@@ -358,6 +390,7 @@ def _build_sorghum_advice(
             "diagnosis_summary": json.dumps(
                 {
                     "provider": "farmly_sorghum",
+                    "identified_crop": "sorghum",
                     "prediction": display_sorghum_class(class_name),
                     "confidence_status": confidence_status,
                     "base_advice": fallback_text,
@@ -371,6 +404,7 @@ def _build_sorghum_advice(
         text = generate_reply(
             latest_user_message=(
                 "Rewrite this sorghum diagnosis into short farmer-friendly advice. "
+                "The first sentence must mention sorghum by name. "
                 "Keep the disease meaning and practical action from the base advice."
             ),
             recent_messages=recent_messages or [],
@@ -439,7 +473,9 @@ def _run_sorghum_diagnosis(
     )
 
 
-def collect_soil_weather_context(profile: UserProfile) -> tuple[str | None, list[str], dict | None, dict | None]:
+async def collect_soil_weather_context_async(
+    profile: UserProfile,
+) -> tuple[str | None, list[str], dict | None, dict | None]:
     location_used = profile.location
     crops_used = split_crops(profile.crops_grown)
     lat_lon = parse_lat_lon(location_used)
@@ -448,15 +484,28 @@ def collect_soil_weather_context(profile: UserProfile) -> tuple[str | None, list
     weather_summary: dict | None = None
     if lat_lon:
         lat, lon = lat_lon
-        try:
-            soil_summary = get_soil_summary(lat, lon)
-        except Exception:
-            soil_summary = None
-        try:
-            weather_summary = get_weather_summary(lat, lon, past_days=7)
-        except Exception:
-            weather_summary = None
+
+        async def load_soil_summary() -> dict | None:
+            try:
+                return await asyncio.to_thread(get_soil_summary, lat, lon)
+            except Exception:
+                return None
+
+        async def load_weather_summary() -> dict | None:
+            try:
+                return await asyncio.to_thread(get_weather_summary, lat, lon, past_days=7)
+            except Exception:
+                return None
+
+        soil_summary, weather_summary = await asyncio.gather(
+            load_soil_summary(),
+            load_weather_summary(),
+        )
     return location_used, crops_used, soil_summary, weather_summary
+
+
+def collect_soil_weather_context(profile: UserProfile) -> tuple[str | None, list[str], dict | None, dict | None]:
+    return asyncio.run(collect_soil_weather_context_async(profile))
 
 
 def run_crop_recommendation(profile: UserProfile, recent_messages: list[dict[str, str]] | None = None) -> dict:
@@ -653,18 +702,21 @@ def run_diagnosis(
     top_crop = crops[0] if crops else None
     top_disease = diseases[0] if diseases else None
     top_disease_name = top_disease.get("name") if top_disease else None
+    advice_crop = top_crop or plant_top_crop
+    advice_crop_name = _crop_display_name(advice_crop)
 
     if not is_plant:
+        fallback_top_crop = top_crop or plant_top_crop
         return DiagnosisResponse(
-            is_plant=False,
-            top_crop=None,
+            is_plant=True,
+            top_crop=fallback_top_crop,
             top_disease=None,
-            crops=[],
+            crops=crops or plant_crops,
             diseases=[],
-            advice_text=_fallback_diagnosis_advice(False, None),
+            advice_text=_unclear_crop_health_advice(fallback_top_crop),
             used_fallback=False,
             provider="kindwise_crop_health",
-            confidence_status="not_plant",
+            confidence_status="uncertain",
             needs_retake=True,
         )
 
@@ -674,9 +726,15 @@ def run_diagnosis(
         split_crops(profile.crops_grown),
         extra={
             "diagnosis_summary": json.dumps(
-                {"is_plant": is_plant, "top_crop": top_crop, "top_disease": top_disease},
+                {
+                    "is_plant": is_plant,
+                    "top_crop": advice_crop,
+                    "top_disease": top_disease,
+                    "identified_crop": advice_crop_name,
+                },
                 ensure_ascii=False,
-            )
+            ),
+            "identified_crop": advice_crop_name,
         },
     )
 
@@ -685,6 +743,8 @@ def run_diagnosis(
         advice_text = generate_reply(
             latest_user_message=(
                 "Provide short farmer-friendly diagnosis advice based on this crop health result. "
+                f"The first sentence must mention the identified crop by name: {advice_crop_name}. "
+                "Do not start with generic phrases like 'your plant'. "
                 "Include what to do now and one prevention tip."
             ),
             recent_messages=recent_messages or [],
@@ -692,7 +752,7 @@ def run_diagnosis(
         )
     except Exception:
         used_fallback = True
-        advice_text = _fallback_diagnosis_advice(True, top_disease_name)
+        advice_text = _fallback_crop_diagnosis_advice(advice_crop_name, top_disease_name)
 
     return DiagnosisResponse(
         is_plant=is_plant,
