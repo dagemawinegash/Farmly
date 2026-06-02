@@ -7,6 +7,7 @@ import { Input } from "@/components/ui/input";
 import { useAuth } from "@/contexts/AuthContext";
 import { useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/lib/api";
+import { getCurrentFarmlyPosition, isNativeApp } from "@/lib/nativePermissions";
 
 const COPY = {
   en: {
@@ -106,44 +107,42 @@ export default function OnboardingLocationPage() {
     setTimeout(() => navigate("/onboarding/language"), 900);
   }
 
-  function detectLocation() {
+  async function detectLocation() {
     setIsDetecting(true);
     setError("");
     setShowManualInput(false);
 
-    if (!navigator.geolocation) {
+    if (!isNativeApp() && !navigator.geolocation) {
       setError(copy.unsupported);
       setIsDetecting(false);
       setShowManualInput(true);
       return;
     }
 
-    navigator.geolocation.getCurrentPosition(
-      (position) => {
-        persistLocation({
-          latitude: position.coords.latitude,
-          longitude: position.coords.longitude,
-          accuracy: position.coords.accuracy,
-        });
-        setIsDetecting(false);
-      },
-      (geoError) => {
-        let message = copy.unable;
-        if (geoError.code === geoError.PERMISSION_DENIED) {
-          message = copy.denied;
-        } else if (geoError.code === geoError.TIMEOUT) {
-          message = copy.timeout;
-        }
-        setError(message);
-        setIsDetecting(false);
-        setShowManualInput(true);
-      },
-      {
+    try {
+      const position = await getCurrentFarmlyPosition({
         enableHighAccuracy: true,
         timeout: 10000,
         maximumAge: 120000,
+      });
+
+      persistLocation({
+        latitude: position.coords.latitude,
+        longitude: position.coords.longitude,
+        accuracy: position.coords.accuracy,
+      });
+    } catch (geoError) {
+      let message = copy.unable;
+      if (geoError.code === 1 || geoError.name === "NotAllowedError") {
+        message = copy.denied;
+      } else if (geoError.code === 3 || geoError.name === "TimeoutError") {
+        message = copy.timeout;
       }
-    );
+      setError(message);
+      setShowManualInput(true);
+    } finally {
+      setIsDetecting(false);
+    }
   }
 
   async function searchLocation(query) {
