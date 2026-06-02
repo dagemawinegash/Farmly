@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 import { getVoiceLanguageCode, useLanguage } from "@/contexts/LanguageContext";
 import { api } from "@/lib/api";
+import { alertsApi } from "@/lib/alerts";
 import { chatApi } from "@/lib/chat";
 import { voiceApi } from "@/lib/voice";
 import { ChatSidebar } from "@/components/chat/ChatSidebar";
@@ -39,6 +40,7 @@ export default function MainPage() {
   const [sessions, setSessions] = useState([]);
   const [activeSessionId, setActiveSessionId] = useState(null);
   const [messages, setMessages] = useState([]);
+  const [urgentAlerts, setUrgentAlerts] = useState([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [speakingMessageId, setSpeakingMessageId] = useState(null);
@@ -83,6 +85,7 @@ export default function MainPage() {
   useEffect(() => {
     if (checkingOnboarding) return;
     fetchSessions();
+    fetchUrgentAlerts();
   }, [checkingOnboarding]);
 
   const fetchSessions = async ({ syncMessages = true } = {}) => {
@@ -107,6 +110,23 @@ export default function MainPage() {
       }
     } catch (err) {
       console.error("Failed to fetch sessions", err);
+    }
+  };
+
+  const fetchUrgentAlerts = async () => {
+    try {
+      const { data } = await alertsApi.listAlerts(20, 0);
+      const severityRank = { high: 0, medium: 1, low: 2 };
+      const alerts = data
+        .filter((alert) => {
+          const isActive = (alert.status || "active") === "active";
+          return isActive && !alert.is_read && ["high", "medium"].includes(alert.severity);
+        })
+        .sort((a, b) => (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9))
+        .slice(0, 2);
+      setUrgentAlerts(alerts);
+    } catch (err) {
+      console.error("Failed to fetch urgent alerts", err);
     }
   };
 
@@ -362,6 +382,7 @@ export default function MainPage() {
       />
       <ChatArea
         messages={messages}
+        urgentAlerts={urgentAlerts}
         onSendMessage={handleSendMessage}
         isLoading={isLoading}
         onOpenSidebar={() => setIsSidebarOpen(true)}

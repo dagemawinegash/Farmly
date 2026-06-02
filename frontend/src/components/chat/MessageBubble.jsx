@@ -34,7 +34,7 @@ export function MessageBubble({ message, onSpeak, isSpeaking }) {
 
   return (
     <div className={cn("flex w-full mb-6", isUser ? "justify-end" : "justify-start")}>
-      <div className={cn("flex max-w-[85%] md:max-w-[75%] gap-3", isUser ? "flex-row-reverse" : "flex-row")}>
+      <div className={cn("flex max-w-[85%] min-w-0 gap-3 md:max-w-[75%]", isUser ? "flex-row-reverse" : "flex-row")}>
         
         {/* Avatar */}
         <div className={cn(
@@ -46,11 +46,11 @@ export function MessageBubble({ message, onSpeak, isSpeaking }) {
 
         {/* Message Content */}
         <div className={cn(
-          "flex flex-col gap-1",
+          "flex min-w-0 flex-col gap-1",
           isUser ? "items-end" : "items-start"
         )}>
           <div className={cn(
-            "rounded-2xl text-sm",
+            "max-w-full overflow-hidden rounded-2xl text-sm",
             isUser && imageUrl ? "p-1" : "px-4 py-3",
             isUser 
               ? "bg-primary text-primary-foreground rounded-tr-sm" 
@@ -72,7 +72,7 @@ export function MessageBubble({ message, onSpeak, isSpeaking }) {
                 )}
               </div>
             ) : (
-              <div className="prose prose-sm dark:prose-invert max-w-none break-words prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-headings:text-foreground">
+              <div className="prose prose-sm dark:prose-invert max-w-full overflow-x-auto break-words prose-p:text-foreground prose-li:text-foreground prose-strong:text-foreground prose-headings:text-foreground prose-pre:max-w-full prose-pre:overflow-x-auto prose-table:block prose-table:max-w-full prose-table:overflow-x-auto">
                 <ReactMarkdown remarkPlugins={[remarkGfm]}>
                   {message.content}
                 </ReactMarkdown>

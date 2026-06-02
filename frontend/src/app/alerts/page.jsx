@@ -4,9 +4,11 @@ import {
   AlertTriangle,
   ArrowLeft,
   Bell,
+  CalendarDays,
   CheckCircle,
-  CloudRain,
+  CloudSun,
   Loader2,
+  MapPin,
   RefreshCw,
   ShieldCheck,
   Trash2,
@@ -21,27 +23,35 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 const COPY = {
   en: {
     chat: "Chat",
-    checkAlerts: "Check weather alerts",
-    brand: "Farmly Alerts",
-    title: "Weather risks for your farm",
-    subtitle:
-      "Farmly checks the next 5 days of weather and turns risky conditions into simple actions farmers can follow.",
+    refresh: "Refresh",
+    brand: "Farm alerts",
+    title: "Farm risks that need attention",
+    subtitle: "Farmly checks your farm weather and crops, then turns risky conditions into simple actions.",
     unread: "unread",
-    weatherOnly: "Weather-only MVP",
-    noAlertsTitle: "No alerts yet",
-    noAlertsBody: 'Click "Check weather alerts" to generate alerts from your saved farm location.',
+    urgent: "Urgent",
+    active: "Other active alerts",
+    history: "History",
+    noAlertsTitle: "No urgent farm risks right now.",
+    noAlertsBody: "Refresh alerts before spraying, fertilizer application, harvest, or field work.",
     whatToDo: "What to do",
     markRead: "Mark as read",
     delete: "Delete",
     deleteConfirm: "Delete this alert?",
     alertDeleted: "Alert deleted.",
-    generated: (count) => `${count} weather alert${count === 1 ? "" : "s"} generated.`,
+    generated: (count) =>
+      count > 0 ? `${count} new farm alert${count === 1 ? "" : "s"} found.` : "Alerts refreshed. No new farm risks found.",
     loadError: "Could not load alerts.",
-    generateError: "Could not generate weather alerts.",
+    generateError: "Could not refresh alerts.",
     updateError: "Could not update alert.",
     deleteError: "Could not delete alert.",
+    riskDate: "Risk day",
+    crops: "Crops",
     rain: "Rain",
     max: "Max",
+    status: {
+      active: "active",
+      expired: "expired",
+    },
     severity: {
       high: "high",
       medium: "medium",
@@ -50,27 +60,35 @@ const COPY = {
   },
   am: {
     chat: "ውይይት",
-    checkAlerts: "የአየር ሁኔታ አስጠንቅቂያ ፈትሽ",
-    brand: "Farmly አስጠንቅቂያዎች",
-    title: "ለእርሻዎ የአየር ሁኔታ አደጋዎች",
-    subtitle:
-      "Farmly የሚቀጥሉትን 5 ቀናት የአየር ሁኔታ ይፈትሻል እና ለገበሬዎች ቀላል የሆኑ የተግባር ምክሮችን ይሰጣል።",
+    refresh: "አድስ",
+    brand: "የእርሻ አስጠንቅቂያዎች",
+    title: "ትኩረት የሚፈልጉ የእርሻ አደጋዎች",
+    subtitle: "Farmly የእርሻዎን አየር ሁኔታ እና ሰብሎች ይፈትሻል፣ ከዚያም ቀላል የተግባር ምክር ይሰጣል።",
     unread: "ያልተነበበ",
-    weatherOnly: "የአየር ሁኔታ MVP",
-    noAlertsTitle: "እስካሁን አስጠንቅቂያ የለም",
-    noAlertsBody: "ከተቀመጠው የእርሻ ቦታዎ መረጃ አስጠንቅቂያ ለማመንጨት የአየር ሁኔታ አስጠንቅቂያ ፈትሽ የሚለውን ይጫኑ።",
+    urgent: "አስቸኳይ",
+    active: "ሌሎች ንቁ አስጠንቅቂያዎች",
+    history: "ታሪክ",
+    noAlertsTitle: "አሁን አስቸኳይ የእርሻ አደጋ የለም።",
+    noAlertsBody: "ከመርጨት፣ ከማዳበሪያ፣ ከሰብል መሰብሰብ ወይም ከማሳ ስራ በፊት አስጠንቅቂያዎችን ያድሱ።",
     whatToDo: "ምን ማድረግ እንዳለብዎ",
     markRead: "እንደተነበበ ምልክት አድርግ",
     delete: "አጥፋ",
     deleteConfirm: "ይህን አስጠንቅቂያ ማጥፋት ይፈልጋሉ?",
     alertDeleted: "አስጠንቅቂያው ተጠፍቷል።",
-    generated: (count) => `${count} የአየር ሁኔታ አስጠንቅቂያ ተፈጥሯል።`,
+    generated: (count) =>
+      count > 0 ? `${count} አዲስ የእርሻ አስጠንቅቂያ ተገኝቷል።` : "አስጠንቅቂያዎች ታድሰዋል። አዲስ የእርሻ አደጋ አልተገኘም።",
     loadError: "አስጠንቅቂያዎችን መጫን አልተቻለም።",
-    generateError: "የአየር ሁኔታ አስጠንቅቂያ ማመንጨት አልተቻለም።",
+    generateError: "አስጠንቅቂያዎችን ማደስ አልተቻለም።",
     updateError: "አስጠንቅቂያውን ማዘመን አልተቻለም።",
     deleteError: "አስጠንቅቂያውን ማጥፋት አልተቻለም።",
+    riskDate: "የአደጋ ቀን",
+    crops: "ሰብሎች",
     rain: "ዝናብ",
     max: "ከፍተኛ",
+    status: {
+      active: "ንቁ",
+      expired: "ጊዜው ያለፈ",
+    },
     severity: {
       high: "ከፍተኛ",
       medium: "መካከለኛ",
@@ -88,57 +106,145 @@ const severityStyles = {
   medium: {
     card: "border-amber-200 bg-amber-50",
     badge: "bg-amber-500 text-white",
-    icon: "text-amber-600",
+    icon: "text-amber-700",
   },
   low: {
-    card: "border-green-200 bg-green-50",
-    badge: "bg-green-600 text-white",
-    icon: "text-green-700",
+    card: "border-emerald-200 bg-emerald-50",
+    badge: "bg-emerald-700 text-white",
+    icon: "text-emerald-700",
   },
 };
 
-function formatDate(value, language) {
-  if (!value) return "";
+const severityRank = { high: 0, medium: 1, low: 2 };
+
+function safeDate(value) {
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? null : date;
+}
+
+function formatDateTime(value, language) {
+  const date = safeDate(value);
+  if (!date) return "";
   return new Intl.DateTimeFormat(language === "am" ? "am-ET" : "en", {
     month: "short",
     day: "numeric",
     hour: "2-digit",
     minute: "2-digit",
-  }).format(new Date(value));
+  }).format(date);
+}
+
+function formatRiskDate(value, language) {
+  const date = safeDate(value ? `${value}T00:00:00` : "");
+  if (!date) return "";
+  return new Intl.DateTimeFormat(language === "am" ? "am-ET" : "en", {
+    month: "short",
+    day: "numeric",
+  }).format(date);
+}
+
+function sortAlerts(items) {
+  return [...items].sort((a, b) => {
+    const unreadDelta = Number(a.is_read) - Number(b.is_read);
+    if (unreadDelta !== 0) return unreadDelta;
+    const severityDelta = (severityRank[a.severity] ?? 9) - (severityRank[b.severity] ?? 9);
+    if (severityDelta !== 0) return severityDelta;
+    return String(a.risk_date || b.created_at || "").localeCompare(String(b.risk_date || a.created_at || ""));
+  });
+}
+
+function groupAlerts(alerts) {
+  const urgent = [];
+  const active = [];
+  const history = [];
+
+  for (const alert of alerts) {
+    const isActive = (alert.status || "active") === "active";
+    const isUrgent = isActive && !alert.is_read && ["high", "medium"].includes(alert.severity);
+    if (isUrgent) {
+      urgent.push(alert);
+    } else if (isActive) {
+      active.push(alert);
+    } else {
+      history.push(alert);
+    }
+  }
+
+  return [
+    { key: "urgent", titleKey: "urgent", items: sortAlerts(urgent) },
+    { key: "active", titleKey: "active", items: sortAlerts(active) },
+    { key: "history", titleKey: "history", items: sortAlerts(history) },
+  ].filter((group) => group.items.length > 0);
 }
 
 function AlertCard({ alert, onMarkRead, onDelete, copy, language }) {
   const styles = severityStyles[alert.severity] || severityStyles.low;
   const forecast = alert.raw_weather?.forecast_days?.slice(0, 5) || [];
+  const crops = alert.recommendation_context?.crops || [];
+  const isExpired = alert.status === "expired";
 
   return (
-    <Card className={`${styles.card} overflow-hidden`}>
-      <CardHeader className="flex flex-row items-start justify-between gap-3">
-        <div className="flex items-start gap-3">
-          <div className="mt-0.5 rounded-full bg-white/80 p-2 shadow-sm">
-            {alert.severity === "low" ? (
+    <Card className={`${styles.card} overflow-hidden ${isExpired ? "opacity-75" : ""}`}>
+      <CardHeader className="flex flex-row items-start justify-between gap-3 pb-3">
+        <div className="flex min-w-0 items-start gap-3">
+          <div className="mt-0.5 rounded-md bg-white/80 p-2 shadow-sm">
+            {isExpired ? (
               <ShieldCheck className={`h-5 w-5 ${styles.icon}`} />
             ) : (
               <AlertTriangle className={`h-5 w-5 ${styles.icon}`} />
             )}
           </div>
-          <div>
-            <CardTitle className="text-lg">{alert.title}</CardTitle>
-            <p className="mt-1 text-xs text-muted-foreground">
-              {formatDate(alert.created_at, language)}
-              {alert.location_used ? ` - ${alert.location_used}` : ""}
-            </p>
+          <div className="min-w-0">
+            <CardTitle className="text-base leading-6 sm:text-lg">{alert.title}</CardTitle>
+            <div className="mt-2 flex flex-wrap gap-x-3 gap-y-1 text-xs text-muted-foreground">
+              {alert.risk_date && (
+                <span className="inline-flex items-center gap-1">
+                  <CalendarDays className="h-3.5 w-3.5" />
+                  {copy.riskDate}: {formatRiskDate(alert.risk_date, language)}
+                </span>
+              )}
+              {alert.location_used && (
+                <span className="inline-flex items-center gap-1">
+                  <MapPin className="h-3.5 w-3.5" />
+                  {alert.location_used}
+                </span>
+              )}
+              <span>{formatDateTime(alert.created_at, language)}</span>
+            </div>
           </div>
         </div>
-        <span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${styles.badge}`}>
-          {copy.severity[alert.severity] || alert.severity}
-        </span>
+        <div className="flex shrink-0 flex-col items-end gap-2">
+          <span className={`rounded-full px-2.5 py-1 text-xs font-bold capitalize ${styles.badge}`}>
+            {copy.severity[alert.severity] || alert.severity}
+          </span>
+          {alert.status && alert.status !== "active" && (
+            <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-muted-foreground">
+              {copy.status[alert.status] || alert.status}
+            </span>
+          )}
+          {!alert.is_read && (
+            <span className="rounded-full bg-white/80 px-2 py-0.5 text-[11px] font-semibold text-foreground">
+              {copy.unread}
+            </span>
+          )}
+        </div>
       </CardHeader>
 
       <CardContent className="space-y-4">
         <p className="text-sm leading-6 text-foreground">{alert.message}</p>
+
+        {crops.length > 0 && (
+          <div className="flex flex-wrap items-center gap-2 text-xs">
+            <span className="font-semibold text-muted-foreground">{copy.crops}</span>
+            {crops.slice(0, 4).map((crop) => (
+              <span key={crop} className="rounded-full border border-white/80 bg-white/75 px-2.5 py-1 font-medium text-foreground">
+                {crop}
+              </span>
+            ))}
+          </div>
+        )}
+
         {alert.action_text && (
-          <div className="rounded-xl border border-white/70 bg-white/75 p-3 text-sm leading-6">
+          <div className="rounded-md border border-white/70 bg-white/75 p-3 text-sm leading-6">
             <p className="font-semibold text-foreground">{copy.whatToDo}</p>
             <p className="mt-1 text-muted-foreground">{alert.action_text}</p>
           </div>
@@ -147,7 +253,7 @@ function AlertCard({ alert, onMarkRead, onDelete, copy, language }) {
         {forecast.length > 0 && (
           <div className="grid grid-cols-2 gap-2 sm:grid-cols-5">
             {forecast.map((day) => (
-              <div key={day.date} className="rounded-xl border border-white/70 bg-white/70 p-2 text-xs">
+              <div key={day.date} className="rounded-md border border-white/70 bg-white/70 p-2 text-xs">
                 <p className="font-semibold text-foreground">{day.date}</p>
                 <p className="mt-1 text-muted-foreground">{copy.rain}: {day.rain_mm ?? "-"} mm</p>
                 <p className="text-muted-foreground">{copy.max}: {day.temp_max_c ?? "-"} C</p>
@@ -199,17 +305,18 @@ export default function AlertsPage() {
   }, [accessToken, isHydrated, navigate]);
 
   const unreadCount = useMemo(() => alerts.filter((alert) => !alert.is_read).length, [alerts]);
+  const groupedAlerts = useMemo(() => groupAlerts(alerts), [alerts]);
 
-  async function loadAlerts() {
-    setLoading(true);
+  async function loadAlerts({ silent = false } = {}) {
+    if (!silent) setLoading(true);
     setError("");
     try {
-      const { data } = await alertsApi.listAlerts();
+      const { data } = await alertsApi.listAlerts(100, 0);
       setAlerts(data);
     } catch (err) {
       setError(extractErrorMessage(err, copy.loadError));
     } finally {
-      setLoading(false);
+      if (!silent) setLoading(false);
     }
   }
 
@@ -219,8 +326,8 @@ export default function AlertsPage() {
     setSuccess("");
     try {
       const { data } = await alertsApi.generateWeatherAlerts(language);
-      setAlerts((previous) => [...data.alerts, ...previous]);
       setSuccess(copy.generated(data.generated_count));
+      await loadAlerts({ silent: true });
     } catch (err) {
       setError(extractErrorMessage(err, copy.generateError));
     } finally {
@@ -261,22 +368,22 @@ export default function AlertsPage() {
   }
 
   return (
-    <main className="min-h-screen bg-[radial-gradient(circle_at_top_left,#dcfce7,transparent_34%),var(--background)]">
+    <main className="min-h-screen bg-[linear-gradient(180deg,#f0fdf4_0%,var(--background)_34%)]">
       <header className="border-b border-border bg-card/95 backdrop-blur">
-        <div className="mx-auto flex max-w-5xl items-center justify-between gap-3 px-4 py-4 sm:px-6">
-          <Link to="/main-page" className="inline-flex items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
+        <div className="mx-auto flex max-w-5xl flex-wrap items-center justify-between gap-3 px-4 py-4 sm:px-6">
+          <Link to="/main-page" className="inline-flex min-h-10 items-center gap-2 text-sm font-medium text-muted-foreground hover:text-foreground">
             <ArrowLeft className="h-4 w-4" />
             {copy.chat}
           </Link>
-          <Button onClick={handleGenerateWeatherAlerts} disabled={generating} className="gap-2">
+          <Button onClick={handleGenerateWeatherAlerts} disabled={generating} className="gap-2 whitespace-nowrap">
             {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
-            {copy.checkAlerts}
+            {copy.refresh}
           </Button>
         </div>
       </header>
 
       <section className="mx-auto max-w-5xl px-4 py-6 sm:px-6">
-        <div className="mb-5 rounded-3xl border border-green-100 bg-white/85 p-5 shadow-sm sm:p-6">
+        <div className="mb-5 rounded-md border border-green-100 bg-white/90 p-5 shadow-sm sm:p-6">
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <div className="flex items-center gap-2 text-primary">
@@ -290,43 +397,56 @@ export default function AlertsPage() {
                 {copy.subtitle}
               </p>
             </div>
-            <div className="rounded-2xl border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-800">
+            <div className="rounded-md border border-green-100 bg-green-50 px-4 py-3 text-sm text-green-900">
               <p className="font-bold">{unreadCount} {copy.unread}</p>
-              <p className="text-xs">{copy.weatherOnly}</p>
+              <p className="text-xs">{groupedAlerts.length} {copy.brand.toLowerCase()}</p>
             </div>
           </div>
         </div>
 
         {error && (
-          <div className="mb-4 rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
+          <div className="mb-4 rounded-md border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
             {error}
           </div>
         )}
         {success && (
-          <div className="mb-4 rounded-xl border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
+          <div className="mb-4 rounded-md border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-700">
             {success}
           </div>
         )}
 
         {alerts.length === 0 ? (
-          <div className="grid place-items-center rounded-3xl border border-dashed border-green-200 bg-white/75 px-6 py-16 text-center">
-            <CloudRain className="h-10 w-10 text-primary" />
+          <div className="grid place-items-center rounded-md border border-dashed border-green-200 bg-white/80 px-6 py-16 text-center">
+            <CloudSun className="h-10 w-10 text-primary" />
             <h2 className="mt-4 text-xl font-bold">{copy.noAlertsTitle}</h2>
             <p className="mt-2 max-w-md text-sm leading-6 text-muted-foreground">
               {copy.noAlertsBody}
             </p>
+            <Button onClick={handleGenerateWeatherAlerts} disabled={generating} className="mt-5 gap-2">
+              {generating ? <Loader2 className="h-4 w-4 animate-spin" /> : <RefreshCw className="h-4 w-4" />}
+              {copy.refresh}
+            </Button>
           </div>
         ) : (
-          <div className="grid gap-4">
-            {alerts.map((alert) => (
-              <AlertCard
-                key={alert.alert_id}
-                alert={alert}
-                onMarkRead={handleMarkRead}
-                onDelete={handleDeleteAlert}
-                copy={copy}
-                language={language}
-              />
+          <div className="grid gap-6">
+            {groupedAlerts.map((group) => (
+              <section key={group.key} className="grid gap-3">
+                <h2 className="text-sm font-bold uppercase tracking-wide text-muted-foreground">
+                  {copy[group.titleKey]}
+                </h2>
+                <div className="grid gap-4">
+                  {group.items.map((alert) => (
+                    <AlertCard
+                      key={alert.alert_id}
+                      alert={alert}
+                      onMarkRead={handleMarkRead}
+                      onDelete={handleDeleteAlert}
+                      copy={copy}
+                      language={language}
+                    />
+                  ))}
+                </div>
+              </section>
             ))}
           </div>
         )}
