@@ -1,6 +1,6 @@
 from fastapi import APIRouter
 
-from src.config.settings import get_settings
+from src.services.health_service import get_health_status
 
 
 router = APIRouter(tags=["Health"])
@@ -8,9 +8,4 @@ router = APIRouter(tags=["Health"])
 
 @router.get("/health")
 def health_check() -> dict[str, str]:
-    settings = get_settings()
-    return {
-        "status": "ok",
-        "service": settings.app_name,
-    }
-
+    return get_health_status()

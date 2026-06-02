@@ -1,8 +1,7 @@
-from datetime import datetime, timezone
-
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, status
 from sqlalchemy.orm import Session
 
+from src.api.errors import raise_http_error
 from src.api.schemas.profile import (
     AccountDeleteRequest,
     AccountDeleteResponse,
@@ -11,46 +10,17 @@ from src.api.schemas.profile import (
     ProfileUpdateRequest,
 )
 from src.auth.dependencies import get_current_user
-from src.auth.password import verify_password
-from src.db.models.user import (
-    OTPVerification,
-    PasswordResetVerification,
-    PhoneChangeVerification,
-    User,
-    UserProfile,
-)
+from src.db.models.user import User
 from src.db.session import get_db
+from src.services.exceptions import ServiceError
+from src.services.profile_service import ProfileService
 
 
 router = APIRouter(tags=["Onboarding"])
 
 
-def _split_crops(value: str | None) -> list[str]:
-    if not value:
-        return []
-    return [crop.strip() for crop in value.split(",") if crop.strip()]
-
-
-def _join_crops(crops: list[str]) -> str:
-    return ",".join(crops)
-
-
-def _to_profile_response(profile: UserProfile) -> ProfileResponse:
-    return ProfileResponse(
-        user_id=profile.user_id,
-        full_name=profile.full_name,
-        phone_number=profile.phone_number,
-        location=profile.location,
-        preferred_language=profile.preferred_language,
-        user_type=profile.user_type,
-        years_experience=profile.years_experience,
-        main_goal=profile.main_goal,
-        crops_grown=_split_crops(profile.crops_grown),
-        onboarding_completed=profile.onboarding_completed,
-        onboarding_completed_at=profile.onboarding_completed_at,
-        created_at=profile.created_at,
-        updated_at=profile.updated_at,
-    )
+def _service(db: Session) -> ProfileService:
+    return ProfileService(db)
 
 
 @router.post(
@@ -63,26 +33,10 @@ def complete_onboarding(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ProfileResponse:
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
-
-    if not profile:
-        profile = UserProfile(user_id=current_user.user_id)
-        db.add(profile)
-
-    profile.full_name = payload.full_name
-    profile.phone_number = payload.phone_number
-    profile.location = payload.location
-    profile.preferred_language = payload.preferred_language
-    profile.user_type = payload.user_type
-    profile.years_experience = payload.years_experience
-    profile.main_goal = payload.main_goal
-    profile.crops_grown = _join_crops(payload.crops_grown)
-    profile.onboarding_completed = True
-    profile.onboarding_completed_at = datetime.now(timezone.utc)
-
-    db.commit()
-    db.refresh(profile)
-    return _to_profile_response(profile)
+    try:
+        return _service(db).complete_onboarding(current_user, payload)
+    except ServiceError as exc:
+        raise_http_error(exc)
 
 
 @router.get("/api/users/me/profile", response_model=ProfileResponse)
@@ -90,13 +44,10 @@ def get_my_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ProfileResponse:
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
-    if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found",
-        )
-    return _to_profile_response(profile)
+    try:
+        return _service(db).get_profile(current_user)
+    except ServiceError as exc:
+        raise_http_error(exc)
 
 
 @router.patch("/api/users/me/profile", response_model=ProfileResponse)
@@ -105,35 +56,10 @@ def update_my_profile(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> ProfileResponse:
-    profile = db.query(UserProfile).filter(UserProfile.user_id == current_user.user_id).first()
-    if not profile:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Profile not found",
-        )
-
-    updates = payload.model_dump(exclude_unset=True)
-    if not updates:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="No fields provided for update",
-        )
-
-    if "phone_number" in updates:
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail="Phone number cannot be updated from this endpoint. Use phone-change flow.",
-        )
-
-    if "crops_grown" in updates and updates["crops_grown"] is not None:
-        updates["crops_grown"] = _join_crops(updates["crops_grown"])
-
-    for field_name, field_value in updates.items():
-        setattr(profile, field_name, field_value)
-
-    db.commit()
-    db.refresh(profile)
-    return _to_profile_response(profile)
+    try:
+        return _service(db).update_profile(current_user, payload)
+    except ServiceError as exc:
+        raise_http_error(exc)
 
 
 @router.delete("/api/users/me", response_model=AccountDeleteResponse, tags=["Users"])
@@ -142,26 +68,7 @@ def delete_my_account(
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db),
 ) -> AccountDeleteResponse:
-    if not verify_password(payload.current_password, current_user.password_hash):
-        raise HTTPException(
-            status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Current password is incorrect",
-        )
-
-    phone_number = current_user.phone_number
-    user_id = current_user.user_id
-
-    db.query(PhoneChangeVerification).filter(
-        PhoneChangeVerification.user_id == user_id,
-    ).delete(synchronize_session=False)
-    db.query(OTPVerification).filter(
-        OTPVerification.phone_number == phone_number,
-    ).delete(synchronize_session=False)
-    db.query(PasswordResetVerification).filter(
-        PasswordResetVerification.phone_number == phone_number,
-    ).delete(synchronize_session=False)
-
-    db.delete(current_user)
-    db.commit()
-
-    return AccountDeleteResponse(message="Account deleted successfully")
+    try:
+        return _service(db).delete_account(current_user, payload)
+    except ServiceError as exc:
+        raise_http_error(exc)
