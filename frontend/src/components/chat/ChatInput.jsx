@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { Loader2, Mic, Send, Square, Image as ImageIcon, X } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { requestMicrophonePermission } from "@/lib/nativePermissions";
 
 const MAX_RECORDING_MS = 45000;
 const MAX_IMAGE_PIXELS = 25000000;
@@ -240,6 +241,7 @@ export function ChatInput({ onSend, disabled, language = "en" }) {
     }
 
     try {
+      await requestMicrophonePermission();
       const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
       const mimeType = getSupportedAudioMimeType();
       const recorder = new MediaRecorder(stream, mimeType ? { mimeType } : undefined);
