@@ -120,7 +120,7 @@ export function ChatSidebar({
                     }
                   }}
                   className={cn(
-                    "group relative flex items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer",
+                    "group relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm transition-colors cursor-pointer",
                     isActive
                       ? "bg-secondary text-secondary-foreground font-medium"
                       : "text-muted-foreground hover:bg-muted hover:text-foreground"
@@ -141,10 +141,10 @@ export function ChatSidebar({
                         className="flex-1 min-w-0 bg-background text-foreground px-1 py-0.5 text-xs rounded border outline-none focus:ring-1 focus:ring-primary"
                         onClick={(e) => e.stopPropagation()}
                       />
-                      <button onClick={(e) => saveEdit(e, session.session_id)} className="p-1 hover:text-primary">
+                      <button onClick={(e) => saveEdit(e, session.session_id)} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted hover:text-primary">
                         <Check className="h-3 w-3" />
                       </button>
-                      <button onClick={cancelEdit} className="p-1 hover:text-destructive">
+                      <button onClick={cancelEdit} className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-muted hover:text-destructive">
                         <X className="h-3 w-3" />
                       </button>
                     </div>
@@ -155,20 +155,22 @@ export function ChatSidebar({
                       </span>
                       
                       <div className={cn(
-                        "flex items-center gap-1 opacity-0 transition-opacity",
-                        isActive ? "opacity-100" : "group-hover:opacity-100"
+                        "flex items-center gap-1 opacity-100 transition-opacity md:opacity-0 md:group-hover:opacity-100",
+                        isActive && "md:opacity-100"
                       )}>
                         <button 
                           onClick={(e) => startEditing(e, session)}
-                          className="p-1 text-muted-foreground hover:text-primary transition-colors"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-primary"
                           title={copy.rename}
+                          aria-label={copy.rename}
                         >
                           <Pencil className="h-3.5 w-3.5" />
                         </button>
                         <button 
                           onClick={(e) => handleDelete(e, session.session_id)}
-                          className="p-1 text-muted-foreground hover:text-destructive transition-colors"
+                          className="inline-flex h-8 w-8 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-destructive"
                           title={copy.delete}
+                          aria-label={copy.delete}
                         >
                           <Trash2 className="h-3.5 w-3.5" />
                         </button>
@@ -192,7 +194,7 @@ export function ChatSidebar({
             <Link
               to="/alerts"
               onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Bell className="h-4 w-4" />
               {copy.alerts}
@@ -200,7 +202,7 @@ export function ChatSidebar({
             <Link
               to="/settings"
               onClick={() => setIsOpen(false)}
-              className="flex items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
+              className="flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
             >
               <Settings className="h-4 w-4" />
               {copy.settings}

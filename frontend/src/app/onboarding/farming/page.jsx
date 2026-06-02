@@ -42,6 +42,7 @@ const COPY = {
     mainGoalPlaceholder: "Main Goal",
     cropsGrown: "Crops Grown",
     cropPlaceholder: "Add crop (example: maize)",
+    removeCrop: (crop) => `Remove ${crop}`,
     addAtLeastOneCrop: "Add at least one crop.",
     back: "Back",
     saving: "Saving...",
@@ -74,6 +75,7 @@ const COPY = {
     mainGoalPlaceholder: "ዋና ግብ",
     cropsGrown: "የሚያበቅሏቸው ሰብሎች",
     cropPlaceholder: "ሰብል ያክሉ (ምሳሌ፦ በቆሎ)",
+    removeCrop: (crop) => `${crop} አስወግድ`,
     addAtLeastOneCrop: "ቢያንስ አንድ ሰብል ያክሉ።",
     back: "ተመለስ",
     saving: "በማስቀመጥ ላይ...",
@@ -93,7 +95,7 @@ const COPY = {
 
 function SelectField({ id, value, onChange, children }) {
   return (
-    <div className="relative max-w-[260px]">
+    <div className="relative w-full">
       <select
         id={id}
         value={value}
@@ -358,7 +360,8 @@ export default function OnboardingFarmingPage() {
                       <button
                         type="button"
                         onClick={() => removeCrop(crop)}
-                        className="text-red-600 hover:text-red-700"
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md text-red-600 hover:bg-red-50 hover:text-red-700"
+                        aria-label={copy.removeCrop(crop)}
                       >
                         <X className="h-4 w-4" />
                       </button>

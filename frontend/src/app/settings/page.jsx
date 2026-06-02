@@ -490,7 +490,12 @@ export default function SettingsPage() {
                   {profileForm.crops_grown.map((crop) => (
                     <span key={crop} className="inline-flex items-center gap-2 rounded-full border border-green-200 bg-green-50 px-3 py-1 text-sm text-green-800">
                       {crop}
-                      <button type="button" onClick={() => removeCrop(crop)} aria-label={copy.removeCrop(crop)}>
+                      <button
+                        type="button"
+                        onClick={() => removeCrop(crop)}
+                        aria-label={copy.removeCrop(crop)}
+                        className="inline-flex h-8 w-8 items-center justify-center rounded-md hover:bg-green-100"
+                      >
                         <X className="h-3.5 w-3.5" />
                       </button>
                     </span>

@@ -48,7 +48,7 @@ export default function HomePage() {
   }, []);
 
   return (
-    <div className="relative h-screen w-full overflow-hidden bg-background">
+    <div className="relative min-h-[100dvh] w-full overflow-x-hidden bg-background">
       <div
         className={[
           "fixed z-50 flex w-full items-center justify-between px-4 py-3 transition-all duration-300 sm:px-6",
@@ -118,11 +118,11 @@ export default function HomePage() {
       </div>
 
       <section
-        className="relative h-screen w-full bg-cover bg-center bg-no-repeat"
+        className="relative min-h-[100dvh] w-full bg-cover bg-center bg-no-repeat"
         style={{ backgroundImage: "url('/img-4.jpg')" }}
       >
         <div className="pointer-events-none absolute inset-0 bg-black/40" />
-        <div className="relative z-10 mx-auto flex h-full max-w-5xl flex-col items-center justify-center px-4 text-center sm:px-6">
+        <div className="relative z-10 mx-auto flex min-h-[100dvh] max-w-5xl flex-col items-center justify-center px-4 py-24 text-center sm:px-6">
           <h1 className="max-w-4xl text-3xl font-bold tracking-tight text-white sm:text-4xl md:text-5xl">
             {copy.heroTitle}
           </h1>

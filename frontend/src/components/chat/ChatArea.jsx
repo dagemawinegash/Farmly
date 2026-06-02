@@ -1,7 +1,8 @@
 import { useEffect, useRef } from "react";
+import { Link } from "react-router-dom";
 import { MessageBubble } from "./MessageBubble";
 import { ChatInput } from "./ChatInput";
-import { Menu, Sprout, CloudRain, Bug, Leaf, Globe } from "lucide-react";
+import { AlertTriangle, ChevronRight, Menu, Sprout, CloudRain, Bug, Leaf, Globe } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { SUPPORTED_LANGUAGES } from "@/contexts/LanguageContext";
 
@@ -9,6 +10,8 @@ const COPY = {
   en: {
     title: "Farmly Assistant",
     responseLanguage: "Response language",
+    alertBannerTitle: "Farm alerts need attention",
+    alertBannerMore: "View",
     welcomeTitle: "Welcome to Farmly",
     welcomeSubtitle: "Your personal agricultural assistant. Ask me anything or choose an option below.",
     quickActions: [
@@ -21,6 +24,8 @@ const COPY = {
   am: {
     title: "Farmly ረዳት",
     responseLanguage: "የመልስ ቋንቋ",
+    alertBannerTitle: "የእርሻ አስጠንቅቂያ ትኩረት ይፈልጋል",
+    alertBannerMore: "ይመልከቱ",
     welcomeTitle: "ወደ Farmly እንኳን በደህና መጡ",
     welcomeSubtitle: "የግብርና ጥያቄዎን በጽሑፍ፣ በድምጽ ወይም በምስል ይጠይቁ።",
     quickActions: [
@@ -34,6 +39,7 @@ const COPY = {
 
 export function ChatArea({ 
   messages, 
+  urgentAlerts = [],
   onSendMessage, 
   isLoading, 
   onOpenSidebar,
@@ -82,6 +88,28 @@ export function ChatArea({
           </div>
         </div>
       </header>
+
+      {urgentAlerts.length > 0 && (
+        <Link
+          to="/alerts"
+          className="mx-3 mt-3 flex shrink-0 items-start gap-3 rounded-md border border-amber-200 bg-amber-50 px-3 py-3 text-sm text-amber-950 shadow-sm transition-colors hover:bg-amber-100 md:mx-6"
+        >
+          <div className="mt-0.5 rounded-md bg-white/80 p-1.5 text-amber-700">
+            <AlertTriangle className="h-4 w-4" />
+          </div>
+          <div className="min-w-0 flex-1">
+            <p className="font-semibold leading-5">{copy.alertBannerTitle}</p>
+            <p className="mt-0.5 truncate text-xs text-amber-900/80">
+              {urgentAlerts[0]?.title}
+              {urgentAlerts.length > 1 ? ` +${urgentAlerts.length - 1}` : ""}
+            </p>
+          </div>
+          <span className="flex shrink-0 items-center gap-1 text-xs font-semibold">
+            {copy.alertBannerMore}
+            <ChevronRight className="h-4 w-4" />
+          </span>
+        </Link>
+      )}
 
       {/* Messages / Empty State */}
       <div className="flex-1 overflow-y-auto p-4 md:p-6 custom-scrollbar">
