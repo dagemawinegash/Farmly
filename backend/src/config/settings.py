@@ -47,6 +47,14 @@ class Settings(BaseSettings):
     sorghum_confident_threshold: float = 0.60
     sorghum_uncertain_threshold: float = 0.40
 
+
+    enset_model_path: str = "backend/model/enset_efficientnet_b0_final_best.pt"
+    enset_model_server_url: str = "http://127.0.0.1:8002"
+    enset_model_server_timeout_seconds: int = 30
+    plant_id_enset_threshold: float = 0.35
+    enset_confident_threshold: float = 0.60
+    enset_uncertain_threshold: float = 0.40
+
     google_cloud_project: str | None = None
     google_application_credentials: str | None = None
     google_cloud_location: str = "global"

@@ -8,6 +8,8 @@ from src.db.models.user import UserProfile
 from src.integrations.crop_health.kindwise_client import diagnose_with_kindwise
 from src.integrations.crop_health.sorghum_labels import display_sorghum_class
 from src.integrations.crop_health.sorghum_model_client import predict_sorghum_disease
+from src.integrations.crop_health.enset_labels import display_enset_class
+from src.integrations.crop_health.enset_model_client import predict_enset_disease
 from src.integrations.llm.gemini_adapter import classify_crop_image, generate_reply
 from src.integrations.soil.isda_client import get_soil_summary
 from src.integrations.weather.open_meteo import get_current_and_forecast, get_weather_summary
@@ -20,6 +22,8 @@ GEMINI_TRIAGE_SUPPORTED_CROP_CONFIDENCE = 0.40
 
 SORGHUM_SCIENTIFIC_NAMES = ("sorghum bicolor",)
 SORGHUM_COMMON_NAMES = ("sorghum", "great millet", "jowar", "milo", "johnsongrass", "johnson grass")
+ENSET_SCIENTIFIC_NAMES = ("ensete ventricosum",)
+ENSET_COMMON_NAMES = ("enset", "ensete", "false banana", "ethiopian banana", "banana", "ensete banana")
 
 SUPPORTED_CROP_KEYWORDS = (
     ("apple", "malus domestica"),
@@ -89,6 +93,32 @@ SORGHUM_ADVICE = {
     ),
 }
 
+ENSET_ADVICE = {
+    "HealthyEnsetDataset": (
+        "The enset looks healthy from this image. Keep monitoring the field and ensure "
+        "proper spacing and weed control."
+    ),
+    "BacterialWilt": (
+        "This may be bacterial wilt. Remove and safely destroy infected plants immediately. "
+        "Disinfect all cutting tools before and after use to prevent spreading."
+    ),
+    "CormRotk": (
+        "This may be corm rot. Ensure proper drainage around the plant. "
+        "Avoid physical damage to the corm during cultivation."
+    ),
+    "FusariumWilt": (
+        "This may be fusarium wilt. Use resistant varieties if available and practice "
+        "strict crop rotation away from infected soil."
+    ),
+    "LeafSpot": (
+        "This may be leaf spot. Remove infected leaves where practical. "
+        "Ensure good airflow and avoid overhead watering."
+    ),
+    "SheathRot": (
+        "This may be sheath rot. Maintain field hygiene and avoid excessive "
+        "nitrogen fertilization."
+    ),
+}
 
 def split_crops(value: str | None) -> list[str]:
     if not value:
@@ -282,6 +312,36 @@ def _find_sorghum_candidate(crops: list[dict]) -> dict | None:
     return None
 
 
+def _is_enset_candidate(candidate: dict | None) -> bool:
+    if not candidate:
+        return False
+
+    scientific_name = str(candidate.get("scientific_name") or "").strip().lower()
+    if _matches_keyword(scientific_name, "enset") or any(
+        _matches_keyword(scientific_name, name) for name in ENSET_SCIENTIFIC_NAMES
+    ):
+        return True
+
+    return any(
+        _matches_keyword(label, name)
+        for label in _candidate_label_values(candidate)
+        for name in ENSET_COMMON_NAMES
+    )
+
+
+def _find_enset_candidate(crops: list[dict]) -> dict | None:
+    top_crop = crops[0] if crops else None
+    if _is_enset_candidate(top_crop):
+        return top_crop
+
+    for crop in crops[:5]:
+        if (
+            _candidate_probability(crop) >= settings.plant_id_enset_threshold
+            and _is_enset_candidate(crop)
+        ):
+            return crop
+    return None
+
 def _matches_supported_crop(candidate: dict | None) -> bool:
     return any(_candidate_matches(candidate, keywords) for keywords in SUPPORTED_CROP_KEYWORDS)
 
@@ -468,6 +528,116 @@ def _run_sorghum_diagnosis(
         advice_text=advice_text,
         used_fallback=used_fallback,
         provider="farmly_sorghum",
+        confidence_status=confidence_status,
+        needs_retake=needs_retake,
+    )
+
+def _enset_advice_text(class_name: str, confidence_status: str) -> str:
+    advice = ENSET_ADVICE.get(
+        class_name,
+        "Monitor the enset closely and upload another clear image if symptoms change or spread.",
+    )
+    if confidence_status == "uncertain":
+        return (
+            "The enset model is not confident from this image. Please upload a closer, well-lit photo "
+            f"from another angle. Possible result: {display_enset_class(class_name)}. {advice}"
+        )
+    return advice
+
+
+def _build_enset_advice(
+    profile: UserProfile,
+    class_name: str,
+    confidence_status: str,
+    recent_messages: list[dict[str, str]] | None,
+) -> tuple[str, bool]:
+    fallback_text = _enset_advice_text(class_name, confidence_status)
+    profile_context = build_profile_context(
+        profile,
+        profile.location,
+        split_crops(profile.crops_grown),
+        extra={
+            "diagnosis_summary": json.dumps(
+                {
+                    "provider": "farmly_enset",
+                    "identified_crop": "enset",
+                    "prediction": display_enset_class(class_name),
+                    "confidence_status": confidence_status,
+                    "base_advice": fallback_text,
+                },
+                ensure_ascii=False,
+            )
+        },
+    )
+
+    try:
+        text = generate_reply(
+            latest_user_message=(
+                "Rewrite this enset diagnosis into short farmer-friendly advice. "
+                "The first sentence must mention enset by name. "
+                "Keep the disease meaning and practical action from the base advice."
+            ),
+            recent_messages=recent_messages or [],
+            profile_context=profile_context,
+        )
+        return text, False
+    except Exception:
+        return fallback_text, True
+
+
+def _run_enset_diagnosis(
+    profile: UserProfile,
+    image_bytes: bytes,
+    crops: list[dict],
+    enset_crop: dict | None,
+    recent_messages: list[dict[str, str]] | None,
+) -> DiagnosisResponse:
+    predictions = predict_enset_disease(image_bytes, top_k=3)
+    top_prediction = predictions[0] if predictions else {
+        "class_name": "Unknown",
+        "name": "Unknown enset issue",
+        "probability": 0.0,
+    }
+    confidence = _candidate_probability(top_prediction)
+
+    if confidence >= settings.enset_confident_threshold:
+        confidence_status = "confident"
+        needs_retake = False
+    elif confidence >= settings.enset_uncertain_threshold:
+        confidence_status = "uncertain"
+        needs_retake = True
+    else:
+        confidence_status = "uncertain"
+        needs_retake = True
+
+    class_name = top_prediction.get("class_name") or ""
+    advice_text, used_fallback = _build_enset_advice(
+        profile,
+        class_name,
+        confidence_status,
+        recent_messages,
+    )
+
+    diseases = [
+        {
+            "name": item.get("name") or display_enset_class(item.get("class_name") or ""),
+            "scientific_name": item.get("class_name"),
+            "probability": item.get("probability"),
+            "similar_images": [],
+        }
+        for item in predictions
+    ]
+    top_crop = enset_crop or (crops[0] if crops else None)
+
+    return DiagnosisResponse(
+        is_plant=True,
+        top_crop=top_crop,
+        top_disease=diseases[0] if diseases else None,
+        crops=crops,
+        diseases=diseases,
+        advice_text=advice_text,
+        used_fallback=used_fallback,
+        provider="farmly_enset",
         confidence_status=confidence_status,
         needs_retake=needs_retake,
     )
@@ -670,7 +840,17 @@ def run_diagnosis(
             sorghum_crop,
             recent_messages,
         )
-
+    enset_crop = _find_enset_candidate(plant_crops)
+    if (_bool_value(vision_triage.get("is_enset")) or decision == "enset_model") and not enset_crop:
+        enset_crop = plant_top_crop
+    if enset_crop:
+        return _run_enset_diagnosis(
+            profile,
+            image_bytes,
+            plant_crops,
+            enset_crop,
+            recent_messages,
+        )
     supported_crop = _find_supported_crop(plant_crops)
     if (
         not supported_crop

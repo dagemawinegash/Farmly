@@ -266,24 +266,28 @@ def classify_crop_image(
         "Look at the uploaded image and decide if it is a plant/crop image.\n"
         "If it is a plant, identify the most likely crop.\n"
         "Use English crop names and scientific names when possible, even if the crop is known in another language.\n"
-        "Sorghum must be routed to Farmly's local sorghum disease model.\n"
-        "Non-sorghum crops can be routed to Kindwise Crop.health only if they match this supported crop list:\n"
+        "Sorghum (Sorghum bicolor) must be routed to Farmly's local sorghum disease model.\n"
+        "Enset (Ensete ventricosum), also called false banana or Ethiopian banana, must be routed to Farmly's local enset disease model. "
+        "Enset looks similar to a banana plant but is NOT a banana — it is a staple crop in Ethiopia. "
+        "If the image shows enset, set is_enset=true and decision=enset_model.\n"
+        "Non-sorghum, non-enset crops can be routed to Kindwise Crop.health only if they match this supported crop list:\n"
         f"{supported_crop_text}\n\n"
         "Return ONLY valid JSON with this exact shape:\n"
         "{\n"
         '  "is_plant": true,\n'
-        '  "crop_name": "maize",\n'
-        '  "scientific_name": "Zea mays",\n'
-        '  "common_names": ["corn", "maize"],\n'
+        '  "crop_name": "enset",\n'
+        '  "scientific_name": "Ensete ventricosum",\n'
+        '  "common_names": ["enset", "false banana"],\n'
         '  "confidence": 0.85,\n'
         '  "is_sorghum": false,\n'
-        '  "is_kindwise_supported": true,\n'
-        '  "supported_crop_match": "maize",\n'
-        '  "decision": "kindwise_crop_health",\n'
+        '  "is_enset": true,\n'
+        '  "is_kindwise_supported": false,\n'
+        '  "supported_crop_match": "",\n'
+        '  "decision": "enset_model",\n'
         '  "reason": "short reason"\n'
         "}\n\n"
         "Rules:\n"
-        '- decision must be one of: "not_plant", "uncertain", "sorghum_model", '
+        '- decision must be one of: "not_plant", "uncertain", "sorghum_model", "enset_model", '
         '"kindwise_crop_health", "unsupported_crop".\n'
         "- confidence must be a number from 0 to 1.\n"
         "- If this is not clearly a plant/crop image, set is_plant=false and decision=not_plant.\n"
